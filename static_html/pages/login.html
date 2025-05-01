@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title> Login </title>
+    </head>
+    <body>
+        <div>
+            <label for="username">username</label>
+            <input type="text" id="username" name="username" size="10" />
+        </div>
+        <div>
+            <br>
+            <label for="password">password</label>
+            <input type="text" id="password" name="password" size="10" />
+            <button onclick="login();"> Se connecter </button>
+        </div>
+        <br>
+        <div>
+            <label for="register">Vous n'avez pas de compte ? Cliquez ici</label>
+            <button onclick="goToRegister();">Créer un compte</button>
+        </div>
+        <script src="../scripts/login.js"></script>
+    </body>
+</html>
