@@ -3,11 +3,12 @@ import { oakCors } from "https://deno.land/x/cors/mod.ts";
 import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, verify } from "https://deno.land/x/djwt/mod.ts";
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
-import test from "node:test";
 import { getUsers } from "./.vscode/libs/SQLHandler.ts"
 
 
 const db = new DB("game.db");
+db.execute(`DROP TABLE IF EXISTS coords;`);
+
 db.execute(`CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL,
@@ -17,22 +18,31 @@ db.execute(`CREATE TABLE IF NOT EXISTS users (
 db.execute(`CREATE TABLE IF NOT EXISTS coords (
   id INTEGER PRIMARY KEY REFERENCES users (id),
   x INTEGER NOT NULL,
-  y INTEGER NOT NULL
+  y INTEGER NOT NULL,
+  facing TEXT NOT NULL DEFAULT 'down'
   )`); 
 
+db.execute(`CREATE TABLE IF NOT EXISTS tokens (
+  token TEXT PRIMARY KEY,
+  username TEXT NOT NULL,
+  FOREIGN KEY (username) REFERENCES users (username)
+  )`);
+
+
+
 db.execute(`DELETE FROM coords;`);
+
 const test_users = getUsers(db);
 const test_coords = db.query(`SELECT id, x, y FROM coords;`);
-console.log(test_coords);
 
 
 const router = new Router();
 const app = new Application();
-const tokens: { [key: string]: string } = {};
+//const tokens: { [key: string]: string } = {};
 const connections: WebSocket[] = [];
 const cooldown = 5 * 1000; // ms
 const myarray: any[] = [];
-
+let updateInterval;
 
 
 // Key for the jsonwebtokens
@@ -87,14 +97,15 @@ router.post("/register", async (ctx) => {
       test_users.push(newUser);
       console.log("User pushed")
       const token = await create({ alg: "HS512", typ: "JWT" }, { userName: newUser.username }, secretKey);
-      ctx.cookies.set("token", token, {
+      // In login/register routes, use this consistent approach:
+      ctx.cookies.set("auth_token", token, {
         httpOnly: true,
         sameSite: "Strict",
         maxAge: 60 * 60,
+        path: "/"
       });
       ctx.response.status = 201;
-      ctx.response.body = { message: "New user registered!", auth_token: token};
-      tokens[token] = username;
+      ctx.response.body = { message: "New user registered!"};
     } 
     else {
       ctx.response.status = 405;
@@ -111,76 +122,136 @@ router.post("/login", async (ctx) => {
   try {
     const body = await ctx.request.body.json(); 
     const { username, password } = body;
-    //console.log(body);
 
-    // Check if the username exists
     const test_users = getUsers(db);
     const user = test_users.find(u => u.username === username);
-    //console.log(user)
+
     if (user) {
-      // Verify the password
       const isMatch = await bcrypt.compare(password, user.password_hash);
+
       if (isMatch) {
-        //removeTokenByUser(username)
         const token = await create({ alg: "HS512", typ: "JWT" }, { userName: user.username }, secretKey);
-        ctx.cookies.set("token", token, {
+        
+        // Vérifier si l'utilisateur a déjà un token
+        const existingToken = db.query(`SELECT token FROM tokens WHERE username = ?`, [user.username]);
+        
+        if (existingToken.length > 0) {
+          // Mettre à jour le token existant
+          db.query(`UPDATE tokens SET token = ? WHERE username = ?`, [token, user.username]);
+          console.log("Token updated in database");
+        } else {
+          // Insérer un nouveau token
+          db.query(`INSERT INTO tokens (token, username) VALUES (?, ?)`, [token, user.username]);
+          console.log("Added token to db");
+        }
+
+        // Définir le cookie
+        ctx.cookies.set("auth_token", token, {
           httpOnly: true,
           sameSite: "Strict",
           maxAge: 60 * 60,
-        });
+          path: "/"
+        }); 
+        
         ctx.response.status = 200;
-        ctx.response.body = { message: "Login successful!", auth_token: token};
-        tokens[token] = username;
+        ctx.response.body = { message: "Login successful!" };
       } else {
         ctx.response.status = 401;
         ctx.response.body = { message: "Invalid credentials" };
       }
-    } 
+    } else {
+      // Ajouter un cas pour quand l'utilisateur n'existe pas
+      ctx.response.status = 404;
+      ctx.response.body = { message: "User not found" };
+    }
   } catch (error) {
+    console.error("Login error:", error);
     ctx.response.status = 400;
     ctx.response.body = { message: "Invalid request body" };
   }
-  
 });
 
-router.post("/createNewPlayer", async (ctx) => {
+router.get("/verifySession", async (ctx) => {
   try {
-    const body = await ctx.request.body.json(); 
-    const {x, y } = body; // Destructure the required fields from the body
-    console.log(body);
-    if (x === undefined || y === undefined) {
-      ctx.response.status = 400;
-      ctx.response.body = { message: "Invalid request body" };
-      return;
-    }
-    const authToken = ctx.request.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!authToken || !(authToken in tokens)) {
+    const authToken = await ctx.cookies.get("auth_token") as string;
+    if (!authToken) {
       ctx.response.status = 401;
       ctx.response.body = { message: "Unauthorized" };
       return;
     }
-    console.log("Auth token:", authToken);
-    const username = tokens[authToken];
-    const user = getUsers(db).find(u => u.username === username);
-    if (!user) {
-      ctx.response.status = 404;
-      ctx.response.body = { message: "User not found" };
-      return;
+    const tokenData = await verify(authToken, secretKey);
+    if (tokenData) {
+      const username = tokenData.userName;
+      const tokenInDB = db.query(`SELECT token FROM tokens WHERE username = ?`, [username]);
+      if (tokenInDB.length > 0) {
+        ctx.response.status = 200;
+        ctx.response.body = { message: "Session is valid", user: { username: username } };
+      } else {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found" };
+      }
+    } else {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Invalid token" };
     }
-    const userId = user.id;
-    // Perform your logic here, e.g., creating a new player
-    const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [userId]);
-    if (userExists.length === 0) {
-      ctx.response.status = 404;
-      ctx.response.body = { message: "User not found in the database" };
-      return;
-    }
-    db.query(`INSERT INTO coords (id, x, y) VALUES (?, ?, ?)`, [userId, x, y]);
-    console.log("New player created with coordinates:", x, y);
-    ctx.response.body = { message: "New player created successfully!", player_id: userId };
-    ctx.response.status = 201;
   } catch (error) {
-    console.error(error);
+    console.log("Redirecting to login page");
+    ctx.response.status = 401;
+  }
+});
+
+
+router.post("/createNewPlayer", async (ctx) => {
+  try {
+    const body = await ctx.request.body.json(); 
+    const { x, y } = body;
+
+    if (typeof x !== "number" || typeof y !== "number") {
+      ctx.response.status = 400;
+      ctx.response.body = { message: "Invalid request body" };
+      return;
+    }
+
+    const authToken = await ctx.cookies.get("auth_token") as string;
+    if (!authToken) {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Unauthorized" };
+      return;
+    }
+    const tokenData = await verify(authToken, secretKey);
+    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
+    if (tokenInDB.length > 0) {
+      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
+      const user = getUsers(db).find(u => u.username === username[0][0]);
+      if (!user) {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found" };
+        return;
+      }
+
+      const userId = user.id;
+      const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [userId]);
+      if (userExists.length === 0) {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found in the database" };
+        return;
+      }
+
+      const existingCoords = db.query(`SELECT * FROM coords WHERE id = ?`, [userId]);
+      if (existingCoords.length > 0) {
+        ctx.response.status = 409;
+        ctx.response.body = { message: "Player already exists" };
+        return;
+      }
+
+      db.query(`INSERT INTO coords (id, x, y, facing) VALUES (?, ?, ?, ?)`, [userId, x, y, "down"]);
+      console.log("New player created with coordinates:", x, y);
+
+      ctx.response.body = { message: "New player created successfully!", player_id: userId };
+      ctx.response.status = 201;
+    }
+   } catch (error) {
+    console.error("Error in /createNewPlayer:", error);
     ctx.response.status = 500;
     ctx.response.body = { message: "Internal server error" };
   }
@@ -190,10 +261,28 @@ router.get("/", (ctx) => {
   if (!ctx.isUpgradable) {
     ctx.throw(501);
   }
+
+
   const ws = ctx.upgrade();
 
   connections.push(ws);
   console.log(`+ websocket connected (${connections.length})`);
+  if (connections.length === 1 && !updateInterval) {
+    updateInterval = setInterval(() => {
+      const positions = db.query(`SELECT * FROM coords;`);
+      console.log(positions)
+      const json = {
+        type: "UpdateAllPlayers",
+        positions: positions.map((row) => ({
+          id: row[0],
+          x: row[1],
+          y: row[2],
+          facing: row[3],
+        })),
+      };
+      sendCoordsToAllUsers(json);
+    }, 100);
+  }
 
   ws.onerror = (_error) => {
     const index = connections.indexOf(ws);
@@ -207,16 +296,15 @@ router.get("/", (ctx) => {
   ws.onmessage = async (event) => {
     const message = event.data;
     const data = JSON.parse(message);
-    console.log("Message received:", data);
-    console.log(data.auth_token in tokens);
-    if (!("auth_token" in data && await is_authorized(data.auth_token))) {
+    const auth_token = await ctx.cookies.get("auth_token") as string;
+    if (!(auth_token && await is_authorized(auth_token))) {
+      console.log("sending to login page"); 
       ws.send(JSON.stringify({ go_to_login: true }));
       return;
     }
-
-    const owner = tokens[data.auth_token];
-    const test_users = getUsers(db)
-    const user = test_users.find((u) => u.username === owner);
+    const owner = db.query(`SELECT username FROM tokens WHERE token = ?`, [auth_token]);
+    const test_users = getUsers(db);
+    const user = test_users.find((u) => u.username === owner[0][0]);
 
     // Check if user exists, if not send an error and disconnect the websocket
     if (!user) {
@@ -227,38 +315,26 @@ router.get("/", (ctx) => {
     
 
     if (data.type == "playerMove") {
+      console.log("Player moved");
       const coord_x = data.x;
       const coord_y = data.y;
       const player_id = data.player_id;
+      const facing = data.facing;
       if (coord_x > 20 || coord_x < 0 || coord_y > 20 || coord_y < 0) {
           ws.send(JSON.stringify({ error: "invalid coordinates" }));
           return
       }
-      db.query(`UPDATE coords SET x = ?, y = ? WHERE id = ?`, [coord_x, coord_y, player_id]);
+      db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, [coord_x, coord_y, facing, player_id]);
       return
     }
     else if (data.type == "playerDisconnect") {
       const player_id = data.player_id;
+      
       db.query(`DELETE FROM coords WHERE id = ?`, [player_id]);
       console.log("Player disconnected");
       return
     }
-    setInterval(() => {
-      const positions = db.query(`SELECT * FROM coords;`);
-      console.log(positions)
-      const json = {
-        type: "UpdateAllPlayers",
-        positions: positions.map((row) => ({
-          id: row[0],
-          x: row[2],
-          y: row[3],
-        })),
-      };
-      sendCoordsToAllUsers(json);
-      const test_coords = db.query(`SELECT id, x, y FROM coords;`);
-      //console.log(test_coords);
-      //console.log("\n");
-  });
+    
 }
   ws.onclose = () => {
     const index = connections.indexOf(ws);
@@ -266,6 +342,10 @@ router.get("/", (ctx) => {
       connections.splice(index, 1);
     }
     console.log(`- websocket disconnected (${connections.length})`);
+    if (connections.length === 0 && updateInterval) {
+      clearInterval(updateInterval);
+      updateInterval = null;
+    }
   };
 });
 
@@ -305,29 +385,33 @@ app.use(
 
 // Function to check the tokens received by websocket messages
 const is_authorized = async (auth_token: string) => {
-  if (!auth_token) {
-    return false;
-  }
-
-  if (auth_token in tokens) {
-    try {
-      const payload = await verify(auth_token, secretKey);
-      if (payload.userName === tokens[auth_token]) {
-        return true;
+  try{
+    if (!auth_token) {
+      return false;
+    }
+    const tokenData = await verify(auth_token, secretKey);
+    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [auth_token]);
+    if (tokenInDB.length > 0) {
+      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [auth_token]);
+      const user = getUsers(db).find(u => u.username === username[0][0]);
+      if (!user) {
+        return false;
       }
-    } catch {
-      console.log("verify token failed");
+      return true;
+    }
+    else {
       return false;
     }
   }
-  console.log("Unknown token");
-  return false;
+  catch (error) {
+    return false;
+  }
 };
 
 // Middleware to verify JWT token
 const authorizationMiddleware = async (ctx: Context, next: () => Promise<unknown>) => {
   const cookie = ctx.request.headers.get("cookie");
-  const authToken = cookie?.split("; ").find(row => row.startsWith("auth_token="))?.split('=')[1];
+  const authToken = ctx.cookies.get("auth_token");
 
   if (!authToken) {
     ctx.response.status = 401;
@@ -350,5 +434,4 @@ app.use(router.routes());
 app.use(router.allowedMethods());
 
 await app.listen(options);
-
 

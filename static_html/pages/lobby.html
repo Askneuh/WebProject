@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lobby</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 5px 0;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lobby</h1>
+    <h2>Liste des joueurs</h2>
+    <ul id="player-list">
+        <script>
+            const players = ['Joueur 1', 'Joueur 2', 'Joueur 3'];
+            const playerList = document.getElementById('player-list');
+            players.forEach(player => {
+            const li = document.createElement('li');
+            li.textContent = player;
+            playerList.appendChild(li);
+            });
+        </script>
+    </ul>
+    <button id="start-button">Démarrer</button>
+
+    <script>
+        document.getElementById('start-button').addEventListener('click', () => {
+            alert('La partie commence !');
+        });
+    </script>
+</body>
+</html>

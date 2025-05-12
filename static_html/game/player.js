@@ -9,7 +9,7 @@ export class Player {
         this.grid = grid;
         this.mesh = null;
         this.player_id = null;
-        this.facingTowards = null; // Placeholder for face direction
+        this.facingTowards = "down"; // Placeholder for face direction
     }
 
     createOnServer() {
@@ -17,13 +17,22 @@ export class Player {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
             },
+            credentials: 'include', // This is already present but needs proper CORS setup
             body: JSON.stringify({ x: this.x, y: this.y })
-        }).then(res => res.json()).then(data => {
+        }).then(res => {
+            if (!res.ok) {
+                // Add more detailed error logging
+                console.error('Response details:', res.status, res.statusText);
+                return res.text().then(text => { throw new Error(text) });
+            }
+            return res.json();
+        }).then(data => {
             this.player_id = data.player_id;
             console.log("Player created:", data);
-        }).catch(console.error);
+        }).catch(error => {
+            console.error("Error creating player on server:", error);
+        });
     }
 
     createMesh() {
@@ -59,16 +68,16 @@ export class Player {
         this.facingTowards = direction;
         switch (direction) {
             case Direction.UP:
-                this.mesh.rotation.y = Math.PI / 2;
-                break;
-            case Direction.DOWN:
-                this.mesh.rotation.y = -Math.PI / 2;
-                break;
-            case Direction.LEFT:
                 this.mesh.rotation.y = Math.PI;
                 break;
-            case Direction.RIGHT:
+            case Direction.DOWN:
                 this.mesh.rotation.y = 0;
+                break;
+            case Direction.LEFT:
+                this.mesh.rotation.y = -Math.PI / 2;
+                break;
+            case Direction.RIGHT:
+                this.mesh.rotation.y = Math.PI / 2;
                 break;
         }
         return this.facingTowards;

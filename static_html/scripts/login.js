@@ -23,11 +23,13 @@ async function login() {
             const result = await response.json();
             console.log("response ok");
             console.log(result.auth_token);
-            localStorage.setItem('auth_token', result.auth_token);
+            //localStorage.setItem('auth_token', result.auth_token); (askip ça le fait automatiquement)
 
             // Redirect or perform other actions based on successful login
+            console.log("Redirecting to index page");
             window.location.href = 'http://localhost:8080/pages/index.html';
-            console.log(localStorage);
+            
+            
         } else if (response.status === 401) {
             // Handle 401 Unauthorized error
             alert('Unauthorized: Invalid username or password');

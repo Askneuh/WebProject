@@ -4,20 +4,12 @@ function connectWebSocket(onMessageCallback, onCloseCallback, onErrorCallback) {
   socket.onopen = () => {
     console.log("✅ WebSocket connecté");
 
-    const authToken = localStorage.getItem('auth_token');
-    if (authToken) {
-      socket.send(JSON.stringify({ auth_token: authToken }));
-    } else {
-      localStorage.removeItem('auth_token');
-      goToLogin();
-    }
   };
 
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data);
 
     if (message.go_to_login) {
-      localStorage.removeItem('auth_token');
       goToLogin();
       return;
     }
@@ -27,8 +19,8 @@ function connectWebSocket(onMessageCallback, onCloseCallback, onErrorCallback) {
     }
   };
 
-  socket.onclose = () => {
-    console.log("❌ WebSocket déconnecté");
+  socket.onclose = (event) => {
+    console.log("❌ WebSocket déconnecté", event.reason || "No reason provided");
     if (typeof onCloseCallback === "function") {
       onCloseCallback();
     }
@@ -50,7 +42,8 @@ function sendMessage(messageObj) {
   }
 }
 
-function goToLogin() {
+export function goToLogin() {
+  console.log("Redirecting to login page");
   window.location.href = "/pages/login.html";
 }
 

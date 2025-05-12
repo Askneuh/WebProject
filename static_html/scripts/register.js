@@ -43,3 +43,8 @@ async function register() {
         // Handle other errors
     }
 }
+
+function goToLogin() {
+    console.log("Redirecting to register page");
+    window.location.href = "http://localhost:8080/pages/login.html";
+}

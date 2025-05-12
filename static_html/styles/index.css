@@ -1,0 +1,131 @@
+/* index.css - Style spécifique pour la page d'accueil du jeu de labyrinthe */
+
+/* Conteneur pour les boutons du menu */
+.menu-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+    margin-top: 20px;
+  }
+  
+  /* Style pour les boutons du menu */
+  .menu-button {
+    display: block;
+    background-color: var(--accent-color);
+    color: white;
+    text-decoration: none;
+    padding: 16px 0;
+    border-radius: var(--border-radius);
+    text-align: center;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 2px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+    font-family: 'Orbitron', sans-serif;
+  }
+  
+  /* Effet hover pour les boutons du menu */
+  .menu-button:hover {
+    background-color: var(--text-color);
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2), 0 0 10px var(--highlight-color);
+    color: white;
+  }
+  
+  /* Effet actif pour les boutons du menu */
+  .menu-button:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Effet de particules pour les boutons */
+  .menu-button::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transform: rotate(45deg);
+    transition: all 0.3s ease;
+    opacity: 0;
+  }
+  
+  .menu-button:hover::before {
+    animation: shine 1.5s ease-in-out;
+    opacity: 1;
+  }
+  
+  /* Animation de pulsation pour le titre principal */
+  h1 {
+    position: relative;
+    animation: pulse 2s infinite alternate;
+  }
+  
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+    }
+    100% {
+      transform: scale(1.05);
+    }
+  }
+  
+  /* Style spécifique pour la page d'accueil */
+  .container {
+    text-align: center;
+    animation: fadeIn 1.5s ease-in-out;
+    max-width: 450px;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Adaptation pour les appareils mobiles */
+  @media (max-width: 480px) {
+    .menu-button {
+      padding: 14px 0;
+    }
+    
+    h1 {
+      font-size: 1.8em;
+    }
+  }
+  
+  /* Animation des rayons de lumière en arrière-plan */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 150vmax;
+    height: 150vmax;
+    background: radial-gradient(circle, var(--highlight-color) 0%, transparent 10%);
+    opacity: 0.05;
+    transform: translate(-50%, -50%);
+    z-index: -2;
+    animation: rotate 60s linear infinite;
+    pointer-events: none;
+  }
+  
+  @keyframes rotate {
+    0% {
+      transform: translate(-50%, -50%) rotate(0deg);
+    }
+    100% {
+      transform: translate(-50%, -50%) rotate(360deg);
+    }
+  }
