@@ -53,6 +53,15 @@ function setupKeyboardControls() {
           newX++;
         }
         break;
+      case 'e':
+        fetch("http://localhost:3000/boo", {
+          method: "POST", 
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({}) 
+        })
     }
 
     if (newX !== player.x || newY !== player.y) {
@@ -110,7 +119,26 @@ function setupWebSocketConnection() {
       }
     } else if (message.type === "mazeUpdate") {
       console.log("Maze updated:", message.maze);
-    } else {
+    } else if (message.type === "boo") {
+      console.log("Boo message received:", message);
+      //const booSound = new Audio('/static_html/sounds/boo.mp3');
+      //booSound.play();
+      if (message.targetId === player.player_id) {
+        alert("Boo! You have been scared!");
+        const random_coord_x = Math.floor(Math.random() * maze[0].length);
+        const random_coord_y = Math.floor(Math.random() * maze.length);
+        player.moveTo(random_coord_x, random_coord_y);
+        sendMessage({
+        type: "playerMove",
+        player_id: player.player_id,
+        x: random_coord_x,
+        y: random_coord_y,
+        facing: player.facingTowards
+      });
+        
+      }
+    }
+    else {
       console.log("Message reçu:", message);
     }
   });

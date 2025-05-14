@@ -32,8 +32,8 @@ db.execute(`CREATE TABLE IF NOT EXISTS tokens (
 db.execute(`CREATE TABLE IF NOT EXISTS stats (
   id INTEGER PRIMARY KEY REFERENCES users (id),
   username TEXT NOT NULL,
-  kills INTEGER,
-  deaths INTEGER)`);
+  kills INTEGER DEFAULT 0,
+  deaths INTEGER DEFAULT 0)`);
 db.execute(`CREATE TABLE IF NOT EXISTS messages (
   id INTEGER REFERENCES users (id),
   message TEXT NOT NULL,
@@ -329,6 +329,88 @@ router.get("/verifyAdmin", async (ctx) => {
     ctx.response.body = { message: "Internal server error" };
   }
 });
+
+router.post("/boo", async (ctx) => {
+  try {
+    const authToken = await ctx.cookies.get("auth_token") as string;
+    if (!authToken) {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Unauthorized" };
+      return;
+    }
+    const tokenData = await verify(authToken, secretKey);
+    if (tokenData) {
+      const username = tokenData.userName || tokenData.username;
+      const tokenInDB = db.query(`SELECT token FROM tokens WHERE username = ?`, [username]);
+      if (tokenInDB.length > 0) {
+        const user = getUsers(db).find(u => u.username === username);
+        if (!user) {
+          ctx.response.status = 404;
+          return;
+        }
+        
+        // Vérifier si le joueur est juste devant quelqu'un
+        // On récupère la position et la direction du joueur courant
+        const playerPos = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
+        if (playerPos.length > 0) {
+          const [x, y, facing] = playerPos[0];
+          let targetX = x;
+          let targetY = y;
+          if (facing === "up") targetY--;
+          else if (facing === "down") targetY++;
+          else if (facing === "left") targetX--;
+          else if (facing === "right") targetX++;
+          // Chercher un joueur à cette position
+          const target = db.query(`SELECT id FROM coords WHERE x = ? AND y = ? AND id != ?`, [targetX, targetY, user.id]);
+          if (target.length > 0) {
+            const targetId = target[0][0];
+            ctx.response.status = 200;
+            ctx.response.body = { message: "Joueur devant trouvé", targetId };
+            connections.forEach((client) => {
+              client.send(JSON.stringify({ type: "boo", targetId: targetId, booer: user.id }));
+            });
+            // Vérifier si les stats existent pour le booer (user)
+            let userStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [user.id]);
+            if (userStats.length === 0) {
+              db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [user.id, user.username]);
+              userStats = [[0, 0]];
+            }
+            // Vérifier si les stats existent pour la cible (targetId)
+            const targetUser = db.query(`SELECT username FROM users WHERE id = ?`, [targetId]);
+            if (targetUser.length === 0) {
+              // La cible n'existe pas, on ne fait rien de plus
+              return;
+            }
+            let targetStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [targetId]);
+            if (targetStats.length === 0) {
+              db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [targetId, targetUser[0][0]]);
+              targetStats = [[0, 0]];
+            }
+            // Incrémenter les kills du booer et les morts de la cible
+            db.query(`UPDATE stats SET kills = kills + 1 WHERE id = ?`, [user.id]);
+            db.query(`UPDATE stats SET deaths = deaths + 1 WHERE id = ?`, [targetId]);
+            return;
+          } else {
+            ctx.response.status = 200;
+            ctx.response.body = { message: "Aucun joueur devant" };
+            return;
+          }
+        }
+      } else {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found" };
+      }
+    } else {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Invalid token" };
+    }
+  } catch (error) {
+    console.error("Error in /getBooed:", error);
+    ctx.response.status = 500;
+    ctx.response.body = { message: "Internal server error" };
+  }
+}
+);
 
 // Route GET /admin/users : liste tous les utilisateurs (admin only)
 router.get("/admin/users", async (ctx) => {
