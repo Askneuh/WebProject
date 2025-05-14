@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js';
 
 export class Player {
-    constructor(x, y, scene, cellSize, grid) {
+    constructor(x, y, scene, cellSize, grid, facingTowards = "down") {
         this.x = x;
         this.y = y;
         this.scene = scene;
@@ -9,7 +9,7 @@ export class Player {
         this.grid = grid;
         this.mesh = null;
         this.player_id = null;
-        this.facingTowards = "down"; // Placeholder for face direction
+        this.facingTowards = facingTowards; // Placeholder for face direction
     }
 
     createOnServer() {
@@ -56,14 +56,34 @@ export class Player {
         this.mesh.position.set(x * this.cellSize, this.cellSize * 0.3, y * this.cellSize);
     }
 
-    canMove(direction) {
+    canMove(direction, otherPlayers = []) {
         const cell = this.grid[this.y][this.x];
-        if (direction === "up") return this.y > 0 && !this.grid[this.y - 1][this.x].walls[2];
-        if (direction === "down") return this.y < this.grid.length - 1 && !this.grid[this.y + 1][this.x].walls[0];
-        if (direction === "left") return this.x > 0 && !this.grid[this.y][this.x - 1].walls[1];
-        if (direction === "right") return this.x < this.grid[0].length - 1 && !this.grid[this.y][this.x + 1].walls[3];
-        return false;
+        let targetX = this.x;
+        let targetY = this.y;
+        if (direction === "up") {
+            if (this.y <= 0 || this.grid[this.y - 1][this.x].walls[2]) return false;
+            targetY--;
+        } else if (direction === "down") {
+            if (this.y >= this.grid.length - 1 || this.grid[this.y + 1][this.x].walls[0]) return false;
+            targetY++;
+        } else if (direction === "left") {
+            if (this.x <= 0 || this.grid[this.y][this.x - 1].walls[1]) return false;
+            targetX--;
+        } else if (direction === "right") {
+            if (this.x >= this.grid[0].length - 1 || this.grid[this.y][this.x + 1].walls[3]) return false;
+            targetX++;
+        } else {
+            return false;
+        }
+        // Collision avec les autres joueurs
+        for (const p of otherPlayers) {
+            if (p.x === targetX && p.y === targetY) {
+                return false;
+            }
+        }
+        return true;
     }
+
     faceTowards(direction) {
         this.facingTowards = direction;
         switch (direction) {

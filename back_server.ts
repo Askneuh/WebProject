@@ -4,6 +4,7 @@ import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, verify } from "https://deno.land/x/djwt/mod.ts";
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
 import { getUsers } from "./.vscode/libs/SQLHandler.ts"
+import { generateMaze} from "./static_html/game/generateMaze.ts";
 
 
 const db = new DB("game.db");
@@ -12,7 +13,8 @@ db.execute(`DROP TABLE IF EXISTS coords;`);
 db.execute(`CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL,
-  password_hash TEXT NOT NULL
+  password_hash TEXT NOT NULL,
+  isAdmin INTEGER DEFAULT 0
   )`);
 
 db.execute(`CREATE TABLE IF NOT EXISTS coords (
@@ -27,7 +29,16 @@ db.execute(`CREATE TABLE IF NOT EXISTS tokens (
   username TEXT NOT NULL,
   FOREIGN KEY (username) REFERENCES users (username)
   )`);
-
+db.execute(`CREATE TABLE IF NOT EXISTS stats (
+  id INTEGER PRIMARY KEY REFERENCES users (id),
+  username TEXT NOT NULL,
+  kills INTEGER,
+  deaths INTEGER)`);
+db.execute(`CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER REFERENCES users (id),
+  message TEXT NOT NULL,
+  PRIMARY KEY (id, message)
+  )`);
 
 
 db.execute(`DELETE FROM coords;`);
@@ -38,11 +49,11 @@ const test_coords = db.query(`SELECT id, x, y FROM coords;`);
 
 const router = new Router();
 const app = new Application();
-//const tokens: { [key: string]: string } = {};
 const connections: WebSocket[] = [];
 const cooldown = 5 * 1000; // ms
 const myarray: any[] = [];
 let updateInterval;
+const maze = generateMaze(20, 20);
 
 
 // Key for the jsonwebtokens
@@ -68,7 +79,7 @@ async function createJwt(username: string): Promise<string> {
   const token = await create(header, payload, secretKey);
   return token
 }
-
+/*
 function removeTokenByUser(user: string) {
   for (const token in tokens) {
     if (tokens[token] === user) {
@@ -78,7 +89,7 @@ function removeTokenByUser(user: string) {
     }
   }
 }
-
+*/
 router.post("/register", async (ctx) => {
   try {
     const test_users = getUsers(db);
@@ -132,20 +143,16 @@ router.post("/login", async (ctx) => {
       if (isMatch) {
         const token = await create({ alg: "HS512", typ: "JWT" }, { userName: user.username }, secretKey);
         
-        // Vérifier si l'utilisateur a déjà un token
         const existingToken = db.query(`SELECT token FROM tokens WHERE username = ?`, [user.username]);
         
         if (existingToken.length > 0) {
-          // Mettre à jour le token existant
           db.query(`UPDATE tokens SET token = ? WHERE username = ?`, [token, user.username]);
           console.log("Token updated in database");
         } else {
-          // Insérer un nouveau token
           db.query(`INSERT INTO tokens (token, username) VALUES (?, ?)`, [token, user.username]);
           console.log("Added token to db");
         }
 
-        // Définir le cookie
         ctx.cookies.set("auth_token", token, {
           httpOnly: true,
           sameSite: "Strict",
@@ -160,7 +167,6 @@ router.post("/login", async (ctx) => {
         ctx.response.body = { message: "Invalid credentials" };
       }
     } else {
-      // Ajouter un cas pour quand l'utilisateur n'existe pas
       ctx.response.status = 404;
       ctx.response.body = { message: "User not found" };
     }
@@ -200,6 +206,35 @@ router.get("/verifySession", async (ctx) => {
   }
 });
 
+router.post("/getMaze", async (ctx) => {
+  try {
+    const authToken = await ctx.cookies.get("auth_token") as string;
+    if (!authToken) {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Unauthorized" };
+      return;
+    }
+    const tokenData = await verify(authToken, secretKey);
+    if (tokenData) {
+      const username = tokenData.userName || tokenData.username;
+      const tokenInDB = db.query(`SELECT token FROM tokens WHERE username = ?`, [username]);
+      if (tokenInDB.length > 0) {
+        ctx.response.status = 200;
+        ctx.response.body = { message: "Maze generated successfully", maze };
+      } else {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found" };
+      }
+    } else {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Invalid token" };
+    }
+  } catch (error) {
+    console.error("Error in /getMaze:", error);
+    ctx.response.status = 500;
+    ctx.response.body = { message: "Internal server error" };
+  }
+});
 
 router.post("/createNewPlayer", async (ctx) => {
   try {
@@ -257,6 +292,134 @@ router.post("/createNewPlayer", async (ctx) => {
   }
 });
 
+router.get("/verifyAdmin", async (ctx) => {
+  try {
+    const authToken = await ctx.cookies.get("auth_token") as string;
+    if (!authToken) {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Unauthorized" };
+      return;
+    }
+    const tokenData = await verify(authToken, secretKey);
+    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
+    if (tokenInDB.length > 0) {
+      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
+      const user = getUsers(db).find(u => u.username === username[0][0]);
+      if (!user) {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found" };
+        return;
+      }
+      const userId = user.id;
+      const isAdmin = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [userId]);
+      if (isAdmin[0][0] == 1) {
+        ctx.response.status = 200;
+        ctx.response.body = { message: "User is admin" };
+      } else {
+        ctx.response.status = 403;
+        ctx.response.body = { message: "User is not admin" };
+      }
+    } else {
+      ctx.response.status = 404;
+      ctx.response.body = { message: "User not found" };
+    }
+  } catch (error) {
+    console.error("Error in /verifyAdmin:", error);
+    ctx.response.status = 500;
+    ctx.response.body = { message: "Internal server error" };
+  }
+});
+
+// Route GET /admin/users : liste tous les utilisateurs (admin only)
+router.get("/admin/users", async (ctx) => {
+  try {
+    const authToken = await ctx.cookies.get("auth_token") as string;
+    if (!authToken) {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Unauthorized" };
+      return;
+    }
+    const tokenData = await verify(authToken, secretKey);
+    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
+    if (tokenInDB.length > 0) {
+      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
+      const user = getUsers(db).find(u => u.username === username[0][0]);
+      if (!user) {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found" };
+        return;
+      }
+      const userId = user.id;
+      const isAdmin = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [userId]);
+      if (isAdmin[0][0] == 1) {
+        // Récupérer tous les utilisateurs
+        const users = db.query(`SELECT id, username FROM users`)
+          .map(([id, username]) => ({ id, username }));
+        ctx.response.status = 200;
+        ctx.response.body = users;
+      } else {
+        ctx.response.status = 403;
+        ctx.response.body = { message: "User is not admin" };
+      }
+    } else {
+      ctx.response.status = 404;
+      ctx.response.body = { message: "User not found" };
+    }
+  } catch (error) {
+    console.error("Error in /admin/users:", error);
+    ctx.response.status = 500;
+    ctx.response.body = { message: "Internal server error" };
+  }
+});
+
+// Route DELETE /admin/users/:id : supprime un utilisateur (admin only)
+router.delete("/admin/users/:id", async (ctx) => {
+  try {
+    const authToken = await ctx.cookies.get("auth_token") as string;
+    if (!authToken) {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Unauthorized" };
+      return;
+    }
+    const tokenData = await verify(authToken, secretKey);
+    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
+    if (tokenInDB.length > 0) {
+      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
+      const user = getUsers(db).find(u => u.username === username[0][0]);
+      if (!user) {
+        ctx.response.status = 404;
+        ctx.response.body = { message: "User not found" };
+        return;
+      }
+      const userId = user.id;
+      const isAdmin = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [userId]);
+      if (isAdmin[0][0] == 1) {
+        const idToDelete = ctx.params.id;
+        // Vérifier si l'utilisateur à supprimer est admin
+        const adminCheck = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [idToDelete]);
+        if (adminCheck.length > 0 && adminCheck[0][0] == 1) {
+          ctx.response.status = 403;
+          ctx.response.body = { message: "Impossible de supprimer un administrateur." };
+          return;
+        }
+        db.query(`DELETE FROM users WHERE id = ?`, [idToDelete]);
+        ctx.response.status = 200;
+        ctx.response.body = { message: "User deleted" };
+      } else {
+        ctx.response.status = 403;
+        ctx.response.body = { message: "User is not admin" };
+      }
+    } else {
+      ctx.response.status = 404;
+      ctx.response.body = { message: "User not found" };
+    }
+  } catch (error) {
+    console.error("Error in DELETE /admin/users/:id:", error);
+    ctx.response.status = 500;
+    ctx.response.body = { message: "Internal server error" };
+  }
+});
+
 router.get("/", (ctx) => {
   if (!ctx.isUpgradable) {
     ctx.throw(501);
@@ -306,7 +469,6 @@ router.get("/", (ctx) => {
     const test_users = getUsers(db);
     const user = test_users.find((u) => u.username === owner[0][0]);
 
-    // Check if user exists, if not send an error and disconnect the websocket
     if (!user) {
       console.log("? user in token doesn't exist");
       ws.close();
@@ -407,7 +569,7 @@ const is_authorized = async (auth_token: string) => {
     return false;
   }
 };
-
+/*
 // Middleware to verify JWT token
 const authorizationMiddleware = async (ctx: Context, next: () => Promise<unknown>) => {
   const cookie = ctx.request.headers.get("cookie");
@@ -420,16 +582,15 @@ const authorizationMiddleware = async (ctx: Context, next: () => Promise<unknown
   }
 
   try {
-    // Verify the token
     const tokenData = await verify(authToken, secretKey);
-    ctx.state.tokenData = tokenData; // Store data in ctx.state for use in other middlewares/routes
+    ctx.state.tokenData = tokenData;
     await next();
   } catch {
     ctx.response.status = 401;
     ctx.response.body = { error: "Unauthorized: Invalid token" };
   }
 };
-
+*/
 app.use(router.routes());
 app.use(router.allowedMethods());
 
