@@ -28,5 +28,14 @@
     </script>
 
     <script type="module" src="../game/game.js"></script>
+
+    <div id="chat-container" style="position:fixed; bottom:10px; right:10px; width:320px; background:rgba(0,0,0,0.8); color:white; border-radius:8px; z-index:2000; font-family:Arial,sans-serif; box-shadow:0 2px 8px #000;">
+        <div style="padding:8px 12px; border-bottom:1px solid #444; font-weight:bold;">Chat</div>
+        <div id="chat-messages" style="height:160px; overflow-y:auto; padding:8px 12px; font-size:14px;"></div>
+        <form id="chat-form" style="display:flex; border-top:1px solid #444;">
+            <input id="chat-input" type="text" placeholder="Message..." autocomplete="off" style="flex:1; padding:8px; border:none; outline:none; background:#222; color:white; font-size:14px; border-radius:0 0 0 8px;" />
+            <button type="submit" style="background:#3a8dde; color:white; border:none; padding:8px 16px; border-radius:0 0 8px 0; cursor:pointer;">Envoyer</button>
+        </form>
+    </div>
 </body>
 </html>

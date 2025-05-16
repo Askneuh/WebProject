@@ -8,13 +8,14 @@ import { generateMaze} from "./static_html/game/generateMaze.ts";
 
 
 const db = new DB("game.db");
-db.execute(`DROP TABLE IF EXISTS coords;`);
+
 
 db.execute(`CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  isAdmin INTEGER DEFAULT 0
+  isAdmin INTEGER DEFAULT 0,
+  isPlaying INTEGER DEFAULT 0
   )`);
 
 db.execute(`CREATE TABLE IF NOT EXISTS coords (
@@ -36,13 +37,13 @@ db.execute(`CREATE TABLE IF NOT EXISTS stats (
   deaths INTEGER DEFAULT 0)`);
 db.execute(`CREATE TABLE IF NOT EXISTS messages (
   id INTEGER REFERENCES users (id),
+  message_id INTEGER,
   message TEXT NOT NULL,
-  PRIMARY KEY (id, message)
+  PRIMARY KEY (id, message_id)
   )`);
 
 
-db.execute(`DELETE FROM coords;`);
-
+db.execute(`DELETE FROM messages;`);
 const test_users = getUsers(db);
 const test_coords = db.query(`SELECT id, x, y FROM coords;`);
 
@@ -90,6 +91,47 @@ function removeTokenByUser(user: string) {
   }
 }
 */
+
+// Factorisation de la vérification d'authentification et récupération user
+async function getVerifiedUser(ctx: any, requireAdmin = false) {
+  const authToken = await ctx.cookies.get("auth_token") as string;
+  if (!authToken) {
+    ctx.response.status = 401;
+    ctx.response.body = { message: "Unauthorized" };
+    return null;
+  }
+  let tokenData;
+  try {
+    tokenData = await verify(authToken, secretKey);
+  } catch {
+    ctx.response.status = 401;
+    ctx.response.body = { message: "Invalid token" };
+    return null;
+  }
+  const username = tokenData.userName || tokenData.username;
+  const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ? OR username = ?`, [authToken, username]);
+  if (tokenInDB.length === 0) {
+    ctx.response.status = 404;
+    ctx.response.body = { message: "User not found" };
+    return null;
+  }
+  const user = getUsers(db).find(u => u.username === username);
+  if (!user) {
+    ctx.response.status = 404;
+    ctx.response.body = { message: "User not found" };
+    return null;
+  }
+  if (requireAdmin) {
+    const isAdmin = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [user.id]);
+    if (!(isAdmin.length > 0 && isAdmin[0][0] == 1)) {
+      ctx.response.status = 403;
+      ctx.response.body = { message: "User is not admin" };
+      return null;
+    }
+  }
+  return user;
+}
+
 router.post("/register", async (ctx) => {
   try {
     const test_users = getUsers(db);
@@ -178,231 +220,187 @@ router.post("/login", async (ctx) => {
 });
 
 router.get("/verifySession", async (ctx) => {
-  try {
-    const authToken = await ctx.cookies.get("auth_token") as string;
-    if (!authToken) {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Unauthorized" };
-      return;
-    }
-    const tokenData = await verify(authToken, secretKey);
-    if (tokenData) {
-      const username = tokenData.userName;
-      const tokenInDB = db.query(`SELECT token FROM tokens WHERE username = ?`, [username]);
-      if (tokenInDB.length > 0) {
-        ctx.response.status = 200;
-        ctx.response.body = { message: "Session is valid", user: { username: username } };
-      } else {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found" };
-      }
-    } else {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Invalid token" };
-    }
-  } catch (error) {
-    console.log("Redirecting to login page");
-    ctx.response.status = 401;
-  }
+  const user = await getVerifiedUser(ctx);
+  if (!user) return;
+  ctx.response.status = 200;
+  ctx.response.body = { message: "Session is valid", user: { username: user.username } };
 });
 
 router.post("/getMaze", async (ctx) => {
-  try {
-    const authToken = await ctx.cookies.get("auth_token") as string;
-    if (!authToken) {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Unauthorized" };
-      return;
-    }
-    const tokenData = await verify(authToken, secretKey);
-    if (tokenData) {
-      const username = tokenData.userName || tokenData.username;
-      const tokenInDB = db.query(`SELECT token FROM tokens WHERE username = ?`, [username]);
-      if (tokenInDB.length > 0) {
-        ctx.response.status = 200;
-        ctx.response.body = { message: "Maze generated successfully", maze };
-      } else {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found" };
-      }
-    } else {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Invalid token" };
-    }
-  } catch (error) {
-    console.error("Error in /getMaze:", error);
-    ctx.response.status = 500;
-    ctx.response.body = { message: "Internal server error" };
-  }
+  const user = await getVerifiedUser(ctx);
+  if (!user) return;
+  ctx.response.status = 200;
+  ctx.response.body = { message: "Maze generated successfully", maze };
 });
 
 router.post("/createNewPlayer", async (ctx) => {
+  const user = await getVerifiedUser(ctx);
+  if (!user) return;
   try {
     const body = await ctx.request.body.json(); 
     const { x, y } = body;
-
     if (typeof x !== "number" || typeof y !== "number") {
       ctx.response.status = 400;
       ctx.response.body = { message: "Invalid request body" };
       return;
     }
-
-    const authToken = await ctx.cookies.get("auth_token") as string;
-    if (!authToken) {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Unauthorized" };
+    const userId = user.id;
+    
+    // Check if user exists in the database
+    const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [userId]);
+    if (userExists.length === 0) {
+      ctx.response.status = 404;
+      ctx.response.body = { message: "User not found in the database" };
       return;
     }
-    const tokenData = await verify(authToken, secretKey);
-    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
-    if (tokenInDB.length > 0) {
-      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
-      const user = getUsers(db).find(u => u.username === username[0][0]);
-      if (!user) {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found" };
-        return;
-      }
-
-      const userId = user.id;
-      const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [userId]);
-      if (userExists.length === 0) {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found in the database" };
-        return;
-      }
-
-      const existingCoords = db.query(`SELECT * FROM coords WHERE id = ?`, [userId]);
-      if (existingCoords.length > 0) {
-        ctx.response.status = 409;
-        ctx.response.body = { message: "Player already exists" };
-        return;
-      }
-
+    
+    // Check if player already has coords (i.e., is already playing)
+    const coordsExists = db.query(`SELECT id FROM coords WHERE id = ?`, [userId]);
+    
+    if (coordsExists.length > 0) {
+      // Player already exists, retrieve current position and return it
+      const currentPosition = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [userId]);
+      ctx.response.status = 202;
+      ctx.response.body = { 
+        message: "Player already exists", 
+        player_id: userId,
+        x: currentPosition[0][0],
+        y: currentPosition[0][1],
+        facing: currentPosition[0][2]
+      };
+      return;
+    }
+    
+    // Add try-catch around database operations
+    try {
+      console.log("Inserting new player into coords table. ID:", userId, "Position:", x, y);
       db.query(`INSERT INTO coords (id, x, y, facing) VALUES (?, ?, ?, ?)`, [userId, x, y, "down"]);
-      console.log("New player created with coordinates:", x, y);
-
+      
+      console.log("Updating user isPlaying status");
+      db.query(`UPDATE users SET isPlaying = 1 WHERE id = ?`, [userId]);
+      
       ctx.response.body = { message: "New player created successfully!", player_id: userId };
       ctx.response.status = 201;
+    } catch (dbError) {
+      console.error("Database error:", dbError);
+      ctx.response.status = 500;
+      ctx.response.body = { message: "Database error", error: dbError.message };
     }
-   } catch (error) {
+  } catch (error) {
     console.error("Error in /createNewPlayer:", error);
     ctx.response.status = 500;
-    ctx.response.body = { message: "Internal server error" };
+    ctx.response.body = { message: "Internal server error", error: error.message };
   }
 });
 
 router.get("/verifyAdmin", async (ctx) => {
-  try {
-    const authToken = await ctx.cookies.get("auth_token") as string;
-    if (!authToken) {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Unauthorized" };
-      return;
-    }
-    const tokenData = await verify(authToken, secretKey);
-    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
-    if (tokenInDB.length > 0) {
-      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
-      const user = getUsers(db).find(u => u.username === username[0][0]);
-      if (!user) {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found" };
-        return;
-      }
-      const userId = user.id;
-      const isAdmin = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [userId]);
-      if (isAdmin[0][0] == 1) {
-        ctx.response.status = 200;
-        ctx.response.body = { message: "User is admin" };
-      } else {
-        ctx.response.status = 403;
-        ctx.response.body = { message: "User is not admin" };
-      }
-    } else {
-      ctx.response.status = 404;
-      ctx.response.body = { message: "User not found" };
-    }
-  } catch (error) {
-    console.error("Error in /verifyAdmin:", error);
-    ctx.response.status = 500;
-    ctx.response.body = { message: "Internal server error" };
+  const user = await getVerifiedUser(ctx, true);
+  if (!user) return;
+  ctx.response.status = 200;
+  ctx.response.body = { message: "User is admin" };
+});
+
+router.get("/admin/users", async (ctx) => {
+  const user = await getVerifiedUser(ctx, true);
+  if (!user) return;
+  // Récupérer tous les utilisateurs
+  const users = db.query(`SELECT id, username FROM users`)
+    .map(([id, username]) => ({ id, username }));
+  ctx.response.status = 200;
+  ctx.response.body = users;
+});
+
+router.delete("/admin/users/:id", async (ctx) => {
+  const user = await getVerifiedUser(ctx, true);
+  if (!user) {
+    // getVerifiedUser gère déjà la réponse
+    return;
   }
+  const idToDelete = ctx.params.id;
+  // Vérifier si l'utilisateur à supprimer est admin
+  const adminCheck = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [idToDelete]);
+  if (adminCheck.length > 0 && adminCheck[0][0] == 1) {
+    ctx.response.status = 403;
+    ctx.response.body = { message: "Impossible de supprimer un administrateur." };
+  } else {
+    db.query(`DELETE FROM users WHERE id = ?`, [idToDelete]);
+    ctx.response.status = 200;
+    ctx.response.body = { message: "User deleted" };
+  }
+  // Ajout manuel des headers CORS pour toutes les réponses explicites
+  ctx.response.headers.set("Access-Control-Allow-Origin", "https://localhost:8080");
+  ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
+  ctx.response.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 });
 
 router.post("/boo", async (ctx) => {
   try {
-    const authToken = await ctx.cookies.get("auth_token") as string;
-    if (!authToken) {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Unauthorized" };
-      return;
-    }
-    const tokenData = await verify(authToken, secretKey);
-    if (tokenData) {
-      const username = tokenData.userName || tokenData.username;
-      const tokenInDB = db.query(`SELECT token FROM tokens WHERE username = ?`, [username]);
-      if (tokenInDB.length > 0) {
-        const user = getUsers(db).find(u => u.username === username);
-        if (!user) {
-          ctx.response.status = 404;
+    const user = await getVerifiedUser(ctx);
+    if (!user) return;
+    // Vérifier si le joueur est juste devant quelqu'un
+    // On récupère la position et la direction du joueur courant
+    const playerPos = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
+    if (playerPos.length > 0) {
+      const [x, y, facing] = playerPos[0];
+      let targetX = x;
+      let targetY = y;
+      if (facing === "up") targetY--;
+      else if (facing === "down") targetY++;
+      else if (facing === "left") targetX--;
+      else if (facing === "right") targetX++;
+      // Chercher un joueur à cette position
+      const target = db.query(`SELECT id FROM coords WHERE x = ? AND y = ? AND id != ?`, [targetX, targetY, user.id]);
+      if (target.length > 0) {
+        const targetId = target[0][0];
+        
+        // Téléporter le joueur cible à une position aléatoire
+        const random_coord_x = Math.floor(Math.random() * 20);
+        const random_coord_y = Math.floor(Math.random() * 20);
+        const randomFacing = ["up", "down", "left", "right"][Math.floor(Math.random() * 4)];
+        
+        // Mettre à jour la position dans la base de données
+        db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, 
+          [random_coord_x, random_coord_y, randomFacing, targetId]);
+        
+        ctx.response.status = 200;
+        ctx.response.body = { message: "Joueur devant trouvé", targetId };
+        
+        // Notifier tous les clients connectés
+        connections.forEach((client) => {
+          client.send(JSON.stringify({ 
+            type: "boo", 
+            targetId: targetId, 
+            booer: user.id
+          }));
+        });
+        
+        // Vérifier si les stats existent pour le booer (user)
+        let userStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [user.id]);
+        if (userStats.length === 0) {
+          db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [user.id, user.username]);
+          userStats = [[0, 0]];
+        }
+        // Vérifier si les stats existent pour la cible (targetId)
+        const targetUser = db.query(`SELECT username FROM users WHERE id = ?`, [targetId]);
+        if (targetUser.length === 0) {
+          // La cible n'existe pas, on ne fait rien de plus
           return;
         }
-        
-        // Vérifier si le joueur est juste devant quelqu'un
-        // On récupère la position et la direction du joueur courant
-        const playerPos = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
-        if (playerPos.length > 0) {
-          const [x, y, facing] = playerPos[0];
-          let targetX = x;
-          let targetY = y;
-          if (facing === "up") targetY--;
-          else if (facing === "down") targetY++;
-          else if (facing === "left") targetX--;
-          else if (facing === "right") targetX++;
-          // Chercher un joueur à cette position
-          const target = db.query(`SELECT id FROM coords WHERE x = ? AND y = ? AND id != ?`, [targetX, targetY, user.id]);
-          if (target.length > 0) {
-            const targetId = target[0][0];
-            ctx.response.status = 200;
-            ctx.response.body = { message: "Joueur devant trouvé", targetId };
-            connections.forEach((client) => {
-              client.send(JSON.stringify({ type: "boo", targetId: targetId, booer: user.id }));
-            });
-            // Vérifier si les stats existent pour le booer (user)
-            let userStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [user.id]);
-            if (userStats.length === 0) {
-              db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [user.id, user.username]);
-              userStats = [[0, 0]];
-            }
-            // Vérifier si les stats existent pour la cible (targetId)
-            const targetUser = db.query(`SELECT username FROM users WHERE id = ?`, [targetId]);
-            if (targetUser.length === 0) {
-              // La cible n'existe pas, on ne fait rien de plus
-              return;
-            }
-            let targetStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [targetId]);
-            if (targetStats.length === 0) {
-              db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [targetId, targetUser[0][0]]);
-              targetStats = [[0, 0]];
-            }
-            // Incrémenter les kills du booer et les morts de la cible
-            db.query(`UPDATE stats SET kills = kills + 1 WHERE id = ?`, [user.id]);
-            db.query(`UPDATE stats SET deaths = deaths + 1 WHERE id = ?`, [targetId]);
-            return;
-          } else {
-            ctx.response.status = 200;
-            ctx.response.body = { message: "Aucun joueur devant" };
-            return;
-          }
+        let targetStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [targetId]);
+        if (targetStats.length === 0) {
+          db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [targetId, targetUser[0][0]]);
+          targetStats = [[0, 0]];
         }
+        // Incrémenter les kills du booer et les morts de la cible
+        db.query(`UPDATE stats SET kills = kills + 1 WHERE id = ?`, [user.id]);
+        db.query(`UPDATE stats SET deaths = deaths + 1 WHERE id = ?`, [targetId]);
+        return;
       } else {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found" };
+        ctx.response.status = 200;
+        ctx.response.body = { message: "Aucun joueur devant" };
+        return;
       }
-    } else {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Invalid token" };
     }
   } catch (error) {
     console.error("Error in /getBooed:", error);
@@ -412,95 +410,55 @@ router.post("/boo", async (ctx) => {
 }
 );
 
-// Route GET /admin/users : liste tous les utilisateurs (admin only)
-router.get("/admin/users", async (ctx) => {
+// Classement des kills (GET /kills)
+router.get("/kills", async (ctx) => {
   try {
-    const authToken = await ctx.cookies.get("auth_token") as string;
-    if (!authToken) {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Unauthorized" };
-      return;
-    }
-    const tokenData = await verify(authToken, secretKey);
-    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
-    if (tokenInDB.length > 0) {
-      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
-      const user = getUsers(db).find(u => u.username === username[0][0]);
-      if (!user) {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found" };
-        return;
-      }
-      const userId = user.id;
-      const isAdmin = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [userId]);
-      if (isAdmin[0][0] == 1) {
-        // Récupérer tous les utilisateurs
-        const users = db.query(`SELECT id, username FROM users`)
-          .map(([id, username]) => ({ id, username }));
-        ctx.response.status = 200;
-        ctx.response.body = users;
-      } else {
-        ctx.response.status = 403;
-        ctx.response.body = { message: "User is not admin" };
-      }
-    } else {
-      ctx.response.status = 404;
-      ctx.response.body = { message: "User not found" };
-    }
+    // Récupère tous les kills, triés par kills décroissants
+    const kills = db.query(`SELECT username, kills FROM stats ORDER BY kills DESC, username ASC`)
+      .map(([username, kills]) => ({ username, kills }));
+    ctx.response.status = 200;
+    ctx.response.body = { kills };
   } catch (error) {
-    console.error("Error in /admin/users:", error);
     ctx.response.status = 500;
-    ctx.response.body = { message: "Internal server error" };
+    ctx.response.body = { message: "Erreur lors de la récupération du classement." };
   }
 });
 
-// Route DELETE /admin/users/:id : supprime un utilisateur (admin only)
-router.delete("/admin/users/:id", async (ctx) => {
-  try {
-    const authToken = await ctx.cookies.get("auth_token") as string;
-    if (!authToken) {
-      ctx.response.status = 401;
-      ctx.response.body = { message: "Unauthorized" };
-      return;
-    }
-    const tokenData = await verify(authToken, secretKey);
-    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [authToken]);
-    if (tokenInDB.length > 0) {
-      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [authToken]);
-      const user = getUsers(db).find(u => u.username === username[0][0]);
-      if (!user) {
-        ctx.response.status = 404;
-        ctx.response.body = { message: "User not found" };
-        return;
-      }
-      const userId = user.id;
-      const isAdmin = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [userId]);
-      if (isAdmin[0][0] == 1) {
-        const idToDelete = ctx.params.id;
-        // Vérifier si l'utilisateur à supprimer est admin
-        const adminCheck = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [idToDelete]);
-        if (adminCheck.length > 0 && adminCheck[0][0] == 1) {
-          ctx.response.status = 403;
-          ctx.response.body = { message: "Impossible de supprimer un administrateur." };
-          return;
-        }
-        db.query(`DELETE FROM users WHERE id = ?`, [idToDelete]);
-        ctx.response.status = 200;
-        ctx.response.body = { message: "User deleted" };
-      } else {
-        ctx.response.status = 403;
-        ctx.response.body = { message: "User is not admin" };
-      }
-    } else {
-      ctx.response.status = 404;
-      ctx.response.body = { message: "User not found" };
-    }
-  } catch (error) {
-    console.error("Error in DELETE /admin/users/:id:", error);
-    ctx.response.status = 500;
-    ctx.response.body = { message: "Internal server error" };
-  }
-});
+// Route pour récupérer la position du joueur connecté
+// router.get("/getPlayerCoords", async (ctx) => {
+//   try {
+//     const authToken = await ctx.cookies.get("auth_token") as string;
+//     if (!authToken) {
+//       ctx.response.status = 401;
+//       ctx.response.body = { message: "Unauthorized" };
+//       return;
+//     }
+//     const tokenData = await verify(authToken, secretKey);
+//     if (tokenData) {
+//       const username = tokenData.userName || tokenData.username;
+//       const user = getUsers(db).find(u => u.username === username);
+//       if (!user) {
+//         ctx.response.status = 404;
+//         ctx.response.body = { message: "User not found" };
+//         return;
+//       }
+//       const coords = db.query(`SELECT x, y FROM coords WHERE id = ?`, [user.id]);
+//       if (coords.length > 0) {
+//         ctx.response.status = 200;
+//         ctx.response.body = { x: coords[0][0], y: coords[0][1], exists: true, player_id: user.id };
+//       } else {
+//         ctx.response.status = 200;
+//         ctx.response.body = { exists: false };
+//       }
+//     } else {
+//       ctx.response.status = 401;
+//       ctx.response.body = { message: "Invalid token" };
+//     }
+//   } catch (error) {
+//     ctx.response.status = 500;
+//     ctx.response.body = { message: "Internal server error" };
+//   }
+// });
 
 router.get("/", (ctx) => {
   if (!ctx.isUpgradable) {
@@ -515,7 +473,7 @@ router.get("/", (ctx) => {
   if (connections.length === 1 && !updateInterval) {
     updateInterval = setInterval(() => {
       const positions = db.query(`SELECT * FROM coords;`);
-      console.log(positions)
+      //console.log(positions)
       const json = {
         type: "UpdateAllPlayers",
         positions: positions.map((row) => ({
@@ -564,6 +522,7 @@ router.get("/", (ctx) => {
       const coord_y = data.y;
       const player_id = data.player_id;
       const facing = data.facing;
+      const coordonnees = db.query(`SELECT id, x, y FROM coords;`);
       if (coord_x > 20 || coord_x < 0 || coord_y > 20 || coord_y < 0) {
           ws.send(JSON.stringify({ error: "invalid coordinates" }));
           return
@@ -575,8 +534,34 @@ router.get("/", (ctx) => {
       const player_id = data.player_id;
       
       db.query(`DELETE FROM coords WHERE id = ?`, [player_id]);
+      db.query(`UPDATE users SET isPlaying = 0 WHERE id = ?`, [player_id]);
+      ws.close();
       console.log("Player disconnected");
       return
+    }
+    // Gestionnaire de requestPositionUpdate supprimé
+    else if (data.type == "message") {
+      // Gestion du chat : broadcast à tous et sauvegarde en base avec message_id auto-incrémenté
+      const { text } = data;
+      if (typeof text === "string" && text.trim().length > 0) {
+        // Récupérer le dernier message_id pour cet utilisateur
+        let lastId = 0;
+        const last = db.query(`SELECT MAX(message_id) FROM messages WHERE id = ?`, [user.id]);
+        if (last.length > 0 && last[0][0] !== null) {
+          lastId = last[0][0];
+        }
+        const newId = lastId + 1;
+        // Sauvegarde en base
+        db.query(`INSERT INTO messages (id, message_id, message) VALUES (?, ?, ?)`, [user.id, newId, text]);
+        // Broadcast à tous les clients
+        connections.forEach((client) => {
+          client.send(JSON.stringify({
+            type: "message",
+            from: user.username,
+            text
+          }));
+        });
+      }
     }
     
 }
@@ -602,27 +587,51 @@ function sendCoordsToAllUsers(json: any) {
 
 
 if (Deno.args.length < 1) {
-  console.log(`Usage: $ deno run --allow-net server.ts PORT [CERT_PATH KEY_PATH]`);
+  console.log(`Usage: $ deno run --allow-net --allow-read server.ts PORT [CERT_PATH KEY_PATH]`);
   Deno.exit();
 }
 
-const options = {port: Deno.args[0]}
+const port = parseInt(Deno.args[0]);
+let listenOptions: any = { port };
 
 if (Deno.args.length >= 3) {
-  options.secure = true;
-  options.cert = await Deno.readTextFile(Deno.args[1]);
-  options.key = await Deno.readTextFile(Deno.args[2]);
+  // Lecture des fichiers de certificat et clé
+  const cert = await Deno.readTextFile(Deno.args[1]);
+  const key = await Deno.readTextFile(Deno.args[2]);
+  
+  listenOptions = {
+    port,
+    secure: true,
+    cert,  // Utiliser 'cert' au lieu de 'certFile'
+    key    // Utiliser 'key' au lieu de 'keyFile'
+  };
   console.log(`SSL conf ready (use https)`);
 }
 
-console.log(`Oak back server running on port ${options.port}`);
+console.log(`Server is running on https://localhost:${port}`);
 
+
+// Middleware global pour garantir les headers CORS même en cas d'erreur
+// app.use(async (ctx, next) => {
+//   try {
+//     await next();
+//   } catch (err) {
+//     ctx.response.status = err.status || 500;
+//     ctx.response.body = { message: err.message || "Internal server error" };
+//     ctx.response.headers.set("Access-Control-Allow-Origin", "https://localhost:8080");
+//     ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
+//     ctx.response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+//     ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+//   }
+// });
+
+// Place oakCors tout de suite après le middleware d'erreur
 app.use(
   oakCors({
-    origin: 'http://localhost:8080', // Allow requests from this origin
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Specify allowed methods
-    allowedHeaders: ["Content-Type", "Authorization"], // Specify allowed headers
-    credentials: true, // Allow credentials like cookies
+    origin: 'https://localhost:8080',
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
@@ -676,5 +685,6 @@ const authorizationMiddleware = async (ctx: Context, next: () => Promise<unknown
 app.use(router.routes());
 app.use(router.allowedMethods());
 
-await app.listen(options);
+await app.listen(listenOptions);
+
 

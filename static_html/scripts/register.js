@@ -4,10 +4,8 @@ async function register() {
     const data = {
         username,
         password
-    };
-
-    try {
-        const response = await fetch('http://localhost:3000/register', {
+    };    try {
+        const response = await fetch('https://localhost:3000/register', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -21,11 +19,7 @@ async function register() {
         if (response.ok) {
             const result = await response.json();
             console.log("response ok");
-            console.log(result.auth_token);
-            localStorage.setItem('auth_token', result.auth_token);
-
-            // Redirect or perform other actions based on successful register
-            window.location.href = 'http://localhost:8080/pages/login.html';
+            window.location.href = '/pages/login.html';
             console.log(localStorage);
         } else if (response.status === 401) {
             // Handle 401 Unauthorized error
@@ -46,5 +40,5 @@ async function register() {
 
 function goToLogin() {
     console.log("Redirecting to register page");
-    window.location.href = "http://localhost:8080/pages/login.html";
+    window.location.href = "/pages/login.html";
 }

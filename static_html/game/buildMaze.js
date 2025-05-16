@@ -65,10 +65,82 @@ export function generateMaze(cols, rows) {
     return grid;
 }
 
+// Chargement des textures
+let wallTexture = null;
+let floorTexture = null;
+
+export async function loadTextures() {
+    const textureLoader = new THREE.TextureLoader();
+    
+    // Chargement de la texture pour les murs
+    wallTexture = await new Promise((resolve) => {
+        textureLoader.load(
+            'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/brick_bump.jpg',
+            texture => {
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(1, 1);
+                resolve(texture);
+            }
+        );
+    });
+    
+    // Chargement de la texture pour le sol
+    floorTexture = await new Promise((resolve) => {
+        textureLoader.load(
+            'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/hardwood2_diffuse.jpg',
+            texture => {
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(20, 20);
+                resolve(texture);
+            }
+        );
+    });
+    
+    return { wallTexture, floorTexture };
+}
+
 export function buildMaze(grid, scene, cellSize = 2) {
+    // Création du sol
+    if (floorTexture) {
+        const floorGeometry = new THREE.PlaneGeometry(cellSize * grid[0].length, cellSize * grid.length);
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            map: floorTexture,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(
+            (grid[0].length * cellSize) / 2 - cellSize / 2,
+            0,
+            (grid.length * cellSize) / 2 - cellSize / 2
+        );
+        scene.add(floor);
+    }
+
     const wallHeight = 4;
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    const wallMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xcccccc,
+        map: wallTexture,
+        roughness: 0.7,
+        metalness: 0.2,
+        bumpMap: wallTexture,
+        bumpScale: 0.3
+    });
     const wallGeometry = new THREE.BoxGeometry(cellSize, wallHeight, 0.5);
+
+    // Ajouter un effet de lumière ambiante sombre pour créer une ambiance
+    const ambientLight = new THREE.AmbientLight(0x333333);
+    scene.add(ambientLight);
+
+    // Ajouter des lumières ponctuelles pour créer une ambiance de jeu de peur
+    const pointLight1 = new THREE.PointLight(0x4466ff, 1, 50);
+    pointLight1.position.set(cellSize * 5, wallHeight * 2, cellSize * 5);
+    scene.add(pointLight1);
+
+    const pointLight2 = new THREE.PointLight(0xff6644, 1, 50);
+    pointLight2.position.set(cellSize * 15, wallHeight * 2, cellSize * 15);
+    scene.add(pointLight2);
 
     grid.forEach((row, y) => {
         row.forEach((cell, x) => {
@@ -101,9 +173,10 @@ export function buildMaze(grid, scene, cellSize = 2) {
     });
     return scene;
 }
+
 const cellSize = 10;
 const mazeSize = 20;
 const maze = generateMaze(mazeSize, mazeSize);
 export function getMaze() {
-    return maze;
+    return maze;    
 }

@@ -1,4 +1,8 @@
-const socket = new WebSocket("ws://localhost:3000");
+// Construction dynamique de l'URL WebSocket pour éviter toute confusion de port
+const WS_PORT = 3000; // Doit correspondre au port backend
+const WS_PROTOCOL = window.location.protocol === "https:" ? "wss" : "ws";
+const WS_HOST = window.location.hostname;
+const socket = new WebSocket(`${WS_PROTOCOL}://${WS_HOST}:${WS_PORT}`);
 
 function connectWebSocket(onMessageCallback, onCloseCallback, onErrorCallback) {
   socket.onopen = () => {

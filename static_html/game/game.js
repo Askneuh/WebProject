@@ -13,6 +13,48 @@ var positions = [];
 let maze;
 let player;
 
+// Overlay classement kills
+const overlay = document.createElement('div');
+overlay.id = 'kills-overlay';
+overlay.style.position = 'fixed';
+overlay.style.top = '10px';
+overlay.style.right = '10px';
+overlay.style.background = 'rgba(0,0,0,0.7)';
+overlay.style.color = 'white';
+overlay.style.padding = '10px 20px';
+overlay.style.borderRadius = '8px';
+overlay.style.zIndex = '1000';
+overlay.style.fontFamily = 'Arial, sans-serif';
+overlay.innerHTML = '<b>Classement Kills</b><div id="kills-list">Chargement...</div>';
+document.body.appendChild(overlay);
+
+function updateKillsOverlay() {
+  fetch('https://localhost:3000/kills', { 
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+
+  })
+    .then(res => res.json())
+    .then(data => {
+      const killsList = document.getElementById('kills-list');
+      if (!data || !Array.isArray(data.kills)) {
+        killsList.innerHTML = 'Aucun score.';
+        return;
+      }
+      killsList.innerHTML = data.kills.map((u, i) =>
+        `<div>${i+1}. <b>${u.username}</b> : ${u.kills} kills</div>`
+      ).join('');
+    })
+    .catch(() => {
+      document.getElementById('kills-list').innerHTML = 'Erreur chargement.';
+    });
+}
+setInterval(updateKillsOverlay, 2000);
+updateKillsOverlay();
+
 function initializePlayer() {
   const random_coord_x = Math.floor(Math.random() * maze[0].length);
   const random_coord_y = Math.floor(Math.random() * maze.length);
@@ -52,16 +94,18 @@ function setupKeyboardControls() {
         if (player.canMove("right", positions)) {
           newX++;
         }
+        break;      
+        case 'e':
+          fetch("https://localhost:3000/boo", {
+            method: "POST", 
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({}) 
+          })
+        
         break;
-      case 'e':
-        fetch("http://localhost:3000/boo", {
-          method: "POST", 
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({}) 
-        })
     }
 
     if (newX !== player.x || newY !== player.y) {
@@ -74,11 +118,12 @@ function setupKeyboardControls() {
         y: newY,
         facing: player.facingTowards
       });
+      console.log("Player moved to server:", newX, newY);
     }
   });
 }
 
-fetch("http://localhost:3000/getMaze", {
+fetch("https://localhost:3000/getMaze", {
   method: "POST", 
   credentials: "include",
   headers: {
@@ -111,38 +156,50 @@ fetch("http://localhost:3000/getMaze", {
 function setupWebSocketConnection() {
   connectWebSocket((message) => {
     if (message.type === "UpdateAllPlayers") {
-      console.log("Positions des joueurs reçues:", message.positions);
       positions = message.positions;
       if (player && player.player_id) {
-        console.log(player.player_id);
         updateAllPlayers(message.positions, scene, maze, player.player_id);
       }
     } else if (message.type === "mazeUpdate") {
-      console.log("Maze updated:", message.maze);
-    } else if (message.type === "boo") {
+      console.log("Maze updated:", message.maze);    } else if (message.type === "boo") {
       console.log("Boo message received:", message);
       //const booSound = new Audio('/static_html/sounds/boo.mp3');
       //booSound.play();
+      
+      // Si ce joueur est la cible
       if (message.targetId === player.player_id) {
         alert("Boo! You have been scared!");
-        const random_coord_x = Math.floor(Math.random() * maze[0].length);
-        const random_coord_y = Math.floor(Math.random() * maze.length);
-        player.moveTo(random_coord_x, random_coord_y);
-        sendMessage({
-        type: "playerMove",
-        player_id: player.player_id,
-        x: random_coord_x,
-        y: random_coord_y,
-        facing: player.facingTowards
-      });
-        
       }
-    }
-    else {
+    } else if (message.type === "message") {
+      // Affiche le message dans le chat
+      const chatMessages = document.getElementById('chat-messages');
+      if (chatMessages) {
+        const div = document.createElement('div');
+        div.innerHTML = `<b>${message.from} :</b> ${message.text}`;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    } else {
       console.log("Message reçu:", message);
     }
   });
 }
+
+// Ajout de l'envoi de message via le chat
+window.addEventListener('DOMContentLoaded', () => {
+  const chatForm = document.getElementById('chat-form');
+  const chatInput = document.getElementById('chat-input');
+  if (chatForm && chatInput) {
+    chatForm.addEventListener('submit', function(e) {
+      e.preventDefault(); //Empeche le rechargement de la page
+      const text = chatInput.value.trim(); //enleve les espaces au debut et a la fin
+      if (text.length > 0) {
+        sendMessage({ type: 'message', text });
+        chatInput.value = '';
+      }
+    });
+  }
+});
 
 function animate() {
   controls.update();

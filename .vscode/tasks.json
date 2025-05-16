@@ -4,14 +4,14 @@
       {
         "label": "Start Frontend",
         "type": "shell",
-        "command": "cd static_html/; deno run --allow-read=./ --allow-net --allow-read --allow-write --watch server.ts 8080",
+        "command": "cd static_html/; deno run --allow-net --allow-read --watch server.ts 8080 ../cert.crt ../cert.key",
         "isBackground": true,
         "problemMatcher": []
       },
       {
         "label": "Start Backend",
         "type": "shell",
-        "command": "deno run --allow-net --watch --allow-read --allow-write back_server.ts 3000",
+        "command": "deno run --allow-net --watch --allow-read --allow-write back_server.ts 3000 cert.crt cert.key",
         "isBackground": true,
         "problemMatcher": []
       },

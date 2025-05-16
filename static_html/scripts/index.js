@@ -1,5 +1,5 @@
 export function verifySession() {
-    fetch("http://localhost:3000/verifySession", {
+    fetch("https://localhost:3000/verifySession", {
         method: "GET",
         credentials: "include", // Assurez-vous que les cookies de session sont envoyés
       })
@@ -18,8 +18,12 @@ export function verifySession() {
 
 
 export async function goToAdmin() {
-    fetch("http://localhost:3000/verifyAdmin", {
+    fetch("https://localhost:3000/verifyAdmin", {
         method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        secure: true,
         credentials: "include", // Assurez-vous que les cookies de session sont envoyés
       })
       .then(response => {

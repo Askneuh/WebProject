@@ -5,10 +5,8 @@ async function login() {
     const data = {
         username,
         password
-    };
-
-    try {
-        const response = await fetch('http://localhost:3000/login', {
+    };    try {
+        const response = await fetch('https://localhost:3000/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -23,11 +21,9 @@ async function login() {
             const result = await response.json();
             console.log("response ok");
             console.log(result.auth_token);
-            //localStorage.setItem('auth_token', result.auth_token); (askip ça le fait automatiquement)
-
-            // Redirect or perform other actions based on successful login
+            //localStorage.setItem('auth_token', result.auth_token); (askip ça le fait automatiquement)            // Redirect or perform other actions based on successful login
             console.log("Redirecting to index page");
-            window.location.href = 'http://localhost:8080/pages/index.html';
+            window.location.href = '/pages/index.html';
             
             
         } else if (response.status === 401) {
@@ -47,5 +43,5 @@ async function login() {
 
 function goToRegister() {
     console.log("Redirecting to register page");
-    window.location.href = "http://localhost:8080/pages/register.html";
+    window.location.href = "/pages/register.html";
 }
