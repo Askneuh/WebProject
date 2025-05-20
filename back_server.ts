@@ -4,8 +4,25 @@ import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, verify } from "https://deno.land/x/djwt/mod.ts";
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
 import { getUsers } from "./.vscode/libs/SQLHandler.ts"
-import { generateMaze} from "./static_html/game/generateMaze.ts";
+import { generateMaze, generateCasinoMap, generateMayanTemple, generateMilitaryBunker, generateSecretLab, generateSpaceStation} from "./static_html/game/generateMaze.ts";
 
+// Fonction pour sélectionner une carte aléatoirement
+function getRandomMap() {
+  const maps = [
+    { name: "Bunker Militaire", generator: generateMilitaryBunker },
+    { name: "Laboratoire Secret", generator: generateSecretLab },
+    { name: "Temple Maya", generator: generateMayanTemple },
+    { name: "Station Spatiale", generator: generateSpaceStation },
+    { name: "Casino", generator: generateCasinoMap }
+  ];
+  
+  const randomIndex = Math.floor(Math.random() * maps.length);
+  console.log(`Carte sélectionnée: ${maps[randomIndex].name}`);
+  return { 
+    mapName: maps[randomIndex].name, 
+    maze: maps[randomIndex].generator() 
+  };
+}
 
 const db = new DB("game.db");
 
@@ -54,7 +71,13 @@ const connections: WebSocket[] = [];
 const cooldown = 5 * 1000; // ms
 const myarray: any[] = [];
 let updateInterval;
-const maze = generateMaze(20, 20);
+let inactivityCheckInterval;
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes en millisecondes
+
+// Générer une carte aléatoire
+const selectedMap = getRandomMap();
+const mapName = selectedMap.mapName;
+const maze = selectedMap.maze;
 
 
 // Key for the jsonwebtokens
@@ -92,7 +115,6 @@ function removeTokenByUser(user: string) {
 }
 */
 
-// Factorisation de la vérification d'authentification et récupération user
 async function getVerifiedUser(ctx: any, requireAdmin = false) {
   const authToken = await ctx.cookies.get("auth_token") as string;
   if (!authToken) {
@@ -230,7 +252,36 @@ router.post("/getMaze", async (ctx) => {
   const user = await getVerifiedUser(ctx);
   if (!user) return;
   ctx.response.status = 200;
-  ctx.response.body = { message: "Maze generated successfully", maze };
+  ctx.response.body = { 
+    message: "Carte générée avec succès", 
+    maze: maze,
+    mapName: mapName 
+  };
+});
+
+router.get("/getPlayerPosition", async (ctx) => {
+  try {
+    const user = await getVerifiedUser(ctx);
+    if (!user) return;
+    
+    const coords = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
+    if (coords.length > 0) {
+      ctx.response.status = 200;
+      ctx.response.body = { 
+        exists: true,
+        x: coords[0][0],
+        y: coords[0][1],
+        facing: coords[0][2],
+        player_id: user.id
+      };
+    } else {
+      ctx.response.status = 200;
+      ctx.response.body = { exists: false };
+    }
+  } catch (error) {
+    ctx.response.status = 500;
+    ctx.response.body = { message: "Internal server error" };
+  }
 });
 
 router.post("/createNewPlayer", async (ctx) => {
@@ -473,7 +524,7 @@ router.get("/", (ctx) => {
   if (connections.length === 1 && !updateInterval) {
     updateInterval = setInterval(() => {
       const positions = db.query(`SELECT * FROM coords;`);
-      //console.log(positions)
+      console.log(positions)
       const json = {
         type: "UpdateAllPlayers",
         positions: positions.map((row) => ({

@@ -14,43 +14,41 @@ export class Player {
 
     // In player.js, modify the createOnServer method to handle different response statuses
     createOnServer() {
-        fetch(`https://localhost:3000/createNewPlayer`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({ x: this.x, y: this.y })
-        }).then(res => {
-            // Handle different response statuses
-            if (res.status === 202) {
-                // Player already exists, use the returned position
-                return res.json().then(data => {
-                    this.x = data.x;
-                    this.y = data.y;
-                    this.facingTowards = data.facing || this.facingTowards;
-                    this.moveTo(this.x, this.y);
-                    this.faceTowards(this.facingTowards);
-                    this.player_id = data.player_id;
-                    console.log('Player already exists, position restored:', data);
-                });
-            }
-            
-            if (!res.ok) {
-                console.error('Response details:', res.status, res.statusText);
-                return res.text().then(text => { throw new Error(text) });
-            }
-            
-            return res.json();
-        }).then(data => {
-            if (data && data.player_id) {
+    fetch(`https://localhost:3000/createNewPlayer`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ x: this.x, y: this.y, facing: this.facingTowards })
+    }).then(res => {
+        if (res.status === 202) {
+            return res.json().then(data => {
+                this.x = data.x;
+                this.y = data.y;
+                this.facingTowards = data.facing || this.facingTowards;
+                this.moveTo(this.x, this.y);
+                this.faceTowards(this.facingTowards);
                 this.player_id = data.player_id;
-                console.log("Player created:", data);
-            }
-        }).catch(error => {
-            console.error("Error creating player on server:", error);
-        });
-    }
+                console.log('Player position restored:', data);
+            });
+        }
+        
+        if (!res.ok) {
+            console.error('Response details:', res.status, res.statusText);
+            return res.text().then(text => { throw new Error(text) });
+        }
+        
+        return res.json();
+    }).then(data => {
+        if (data && data.player_id) {
+            this.player_id = data.player_id;
+            console.log("Player created:", data);
+        }
+    }).catch(error => {
+        console.error("Error creating player on server:", error);
+    });
+}
 
     createMesh() {
         const geometry = new THREE.SphereGeometry(this.cellSize * 0.3, 16, 16);
