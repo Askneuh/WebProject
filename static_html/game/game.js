@@ -28,52 +28,6 @@ overlay.style.fontFamily = 'Arial, sans-serif';
 overlay.innerHTML = '<b>Classement Kills</b><div id="kills-list">Chargement...</div>';
 document.body.appendChild(overlay);
 
-// Overlay pour afficher le nom de la carte
-const mapOverlay = document.createElement('div');
-mapOverlay.id = 'map-overlay';
-mapOverlay.style.position = 'fixed';
-mapOverlay.style.top = '10px';
-mapOverlay.style.left = '50%';
-mapOverlay.style.transform = 'translateX(-50%)';
-mapOverlay.style.background = 'rgba(0,0,0,0.7)';
-mapOverlay.style.color = 'white';
-mapOverlay.style.padding = '10px 20px';
-mapOverlay.style.borderRadius = '8px';
-mapOverlay.style.zIndex = '1000';
-mapOverlay.style.fontFamily = 'Arial, sans-serif';
-mapOverlay.innerHTML = '<b>Carte: </b><span id="map-name">Chargement...</span>';
-document.body.appendChild(mapOverlay);
-
-// Bouton pour quitter la partie
-const quitButton = document.createElement('button');
-quitButton.id = 'quit-button';
-quitButton.textContent = 'Quitter';
-quitButton.style.position = 'fixed';
-quitButton.style.top = '10px';
-quitButton.style.left = '10px';
-quitButton.style.padding = '10px 20px';
-quitButton.style.background = '#ff3a3a';
-quitButton.style.color = 'white';
-quitButton.style.border = 'none';
-quitButton.style.borderRadius = '5px';
-quitButton.style.fontSize = '16px';
-quitButton.style.cursor = 'pointer';
-quitButton.style.zIndex = '2000';
-quitButton.style.fontFamily = 'Arial, sans-serif';
-quitButton.style.boxShadow = '0 2px 8px rgba(0,0,0,0.5)';
-quitButton.addEventListener('click', function() {
-  // Notifier le serveur que le joueur se déconnecte
-  if (player && player.player_id) {
-    sendMessage({
-      type: "playerDisconnect",
-      player_id: player.player_id
-    });
-  }
-  // Rediriger vers la page d'accueil
-  window.location.href = '../pages/index.html';
-});
-document.body.appendChild(quitButton);
-
 function updateKillsOverlay() {
   fetch('https://localhost:3000/kills', { 
     method: 'GET',
@@ -223,12 +177,6 @@ fetch("https://localhost:3000/getMaze", {
 .then(result => {
   maze = result.maze;
   console.log("Maze fetched:", maze);
-  
-  // Afficher le nom de la carte
-  if (result.mapName) {
-    document.getElementById('map-name').textContent = result.mapName;
-    console.log("Map name:", result.mapName);
-  }
   
   buildMaze(maze, scene, cellSize);
   

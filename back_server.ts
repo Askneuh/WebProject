@@ -4,25 +4,8 @@ import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, verify } from "https://deno.land/x/djwt/mod.ts";
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
 import { getUsers } from "./.vscode/libs/SQLHandler.ts"
-import { generateMaze, generateCasinoMap, generateMayanTemple, generateMilitaryBunker, generateSecretLab, generateSpaceStation} from "./static_html/game/generateMaze.ts";
+import { generateMaze} from "./static_html/game/generateMaze.ts";
 
-// Fonction pour sélectionner une carte aléatoirement
-function getRandomMap() {
-  const maps = [
-    { name: "Bunker Militaire", generator: generateMilitaryBunker },
-    { name: "Laboratoire Secret", generator: generateSecretLab },
-    { name: "Temple Maya", generator: generateMayanTemple },
-    { name: "Station Spatiale", generator: generateSpaceStation },
-    { name: "Casino", generator: generateCasinoMap }
-  ];
-  
-  const randomIndex = Math.floor(Math.random() * maps.length);
-  console.log(`Carte sélectionnée: ${maps[randomIndex].name}`);
-  return { 
-    mapName: maps[randomIndex].name, 
-    maze: maps[randomIndex].generator() 
-  };
-}
 
 const db = new DB("game.db");
 
@@ -52,13 +35,11 @@ db.execute(`CREATE TABLE IF NOT EXISTS stats (
   username TEXT NOT NULL,
   kills INTEGER DEFAULT 0,
   deaths INTEGER DEFAULT 0)`);
-db.execute(`CREATE TABLE IF NOT EXISTS messages (
-  id INTEGER REFERENCES users (id),
-  message_id INTEGER,
-  message TEXT NOT NULL,
-  PRIMARY KEY (id, message_id)
+// Ajouter la table last_activity pour suivre l'activité des joueurs
+db.execute(`CREATE TABLE IF NOT EXISTS last_activity (
+  id INTEGER PRIMARY KEY REFERENCES users (id),
+  last_move_timestamp INTEGER NOT NULL
   )`);
-
 
 db.execute(`DELETE FROM messages;`);
 const test_users = getUsers(db);
@@ -73,11 +54,7 @@ const myarray: any[] = [];
 let updateInterval;
 let inactivityCheckInterval;
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes en millisecondes
-
-// Générer une carte aléatoire
-const selectedMap = getRandomMap();
-const mapName = selectedMap.mapName;
-const maze = selectedMap.maze;
+const maze = generateMaze(20, 20);
 
 
 // Key for the jsonwebtokens
@@ -252,11 +229,7 @@ router.post("/getMaze", async (ctx) => {
   const user = await getVerifiedUser(ctx);
   if (!user) return;
   ctx.response.status = 200;
-  ctx.response.body = { 
-    message: "Carte générée avec succès", 
-    maze: maze,
-    mapName: mapName 
-  };
+  ctx.response.body = { message: "Maze generated successfully", maze };
 });
 
 router.get("/getPlayerPosition", async (ctx) => {
@@ -326,6 +299,10 @@ router.post("/createNewPlayer", async (ctx) => {
     try {
       console.log("Inserting new player into coords table. ID:", userId, "Position:", x, y);
       db.query(`INSERT INTO coords (id, x, y, facing) VALUES (?, ?, ?, ?)`, [userId, x, y, "down"]);
+      
+      // Initialiser l'horodatage de la dernière activité
+      const currentTime = Date.now();
+      db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [userId, currentTime]);
       
       console.log("Updating user isPlaying status");
       db.query(`UPDATE users SET isPlaying = 1 WHERE id = ?`, [userId]);
@@ -579,6 +556,16 @@ router.get("/", (ctx) => {
           return
       }
       db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, [coord_x, coord_y, facing, player_id]);
+      
+      // Mettre à jour l'horodatage de la dernière activité du joueur
+      const currentTime = Date.now();
+      const activityExists = db.query(`SELECT id FROM last_activity WHERE id = ?`, [player_id]);
+      if (activityExists.length > 0) {
+        db.query(`UPDATE last_activity SET last_move_timestamp = ? WHERE id = ?`, [currentTime, player_id]);
+      } else {
+        db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [player_id, currentTime]);
+      }
+      
       return
     }
     else if (data.type == "playerDisconnect") {
