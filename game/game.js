@@ -29,7 +29,7 @@ overlay.innerHTML = '<b>Classement Kills</b><div id="kills-list">Chargement...</
 document.body.appendChild(overlay);
 
 function updateKillsOverlay() {
-  fetch('https://localhost:3000/kills', { 
+  fetch('https://boorinthe-back.cluster-ig3.igpolytech.fr/kills', { 
     method: 'GET',
     credentials: 'include',
     headers: {
@@ -58,7 +58,7 @@ updateKillsOverlay();
 async function initializePlayer() {
   try {
     // D'abord essayer de récupérer la position existante
-    const response = await fetch("https://localhost:3000/getPlayerPosition", {
+    const response = await fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr/getPlayerPosition", {
       method: "GET",
       credentials: "include"
     });
@@ -131,7 +131,7 @@ function setupKeyboardControls() {
         }
         break;      
         case 'e':
-          fetch("https://localhost:3000/boo", {
+          fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr:3000/boo", {
             method: "POST", 
             credentials: "include",
             headers: {
@@ -158,7 +158,7 @@ function setupKeyboardControls() {
   });
 }
 
-fetch("https://localhost:3000/getMaze", {
+fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr/getMaze", {
   method: "POST", 
   credentials: "include",
   headers: {

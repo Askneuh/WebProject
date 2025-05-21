@@ -14,7 +14,7 @@ export class Player {
 
     // In player.js, modify the createOnServer method to handle different response statuses
     createOnServer() {
-    fetch(`https://localhost:3000/createNewPlayer`, {
+    fetch(`https://boorinthe-back.cluster-ig3.igpolytech.fr/createNewPlayer`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

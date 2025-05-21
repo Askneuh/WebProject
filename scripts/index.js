@@ -1,5 +1,5 @@
 export function verifySession() {
-    fetch("https://localhost:3000/verifySession", {
+    fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr/verifySession", {
         method: "GET",
         credentials: "include", // Assurez-vous que les cookies de session sont envoyés
       })
@@ -18,7 +18,7 @@ export function verifySession() {
 
 
 export async function goToAdmin() {
-    fetch("https://localhost:3000/verifyAdmin", {
+    fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr/verifyAdmin", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
