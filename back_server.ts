@@ -4,7 +4,7 @@ import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, verify } from "https://deno.land/x/djwt/mod.ts";
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
 import { getUsers } from "./.vscode/libs/SQLHandler.ts"
-import { generateMaze} from "./static_html/game/generateMaze.ts";
+import { generateMaze} from "./generateMaze.ts";
 
 
 const db = new DB("game.db");
@@ -356,7 +356,7 @@ router.delete("/admin/users/:id", async (ctx) => {
     ctx.response.body = { message: "User deleted" };
   }
   // Ajout manuel des headers CORS pour toutes les réponses explicites
-  ctx.response.headers.set("Access-Control-Allow-Origin", "https://localhost:8080");
+  ctx.response.headers.set("Access-Control-Allow-Origin", "https://boorinthe.cluster-ig3.igpolytech.fr");
   ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
   ctx.response.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -630,7 +630,7 @@ if (Deno.args.length < 1) {
 }
 
 const port = parseInt(Deno.args[0]);
-let listenOptions: any = { port };
+let listenOptions: any = { port, secure: true };
 
 if (Deno.args.length >= 3) {
   // Lecture des fichiers de certificat et clé
@@ -666,7 +666,7 @@ console.log(`Server is running on https://localhost:${port}`);
 // Place oakCors tout de suite après le middleware d'erreur
 app.use(
   oakCors({
-    origin: 'https://localhost:8080',
+    origin: 'https://boorinthe.cluster-ig3.igpolytech.fr',
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
