@@ -1,1 +1,1 @@
-web: ./.heroku/bin/deno run --allow-env --allow-read --allow-net back_server.ts $PORT
+web: ./.heroku/bin/deno run --allow-env --allow-read --allow-net --allow-write back_server.ts $PORT
