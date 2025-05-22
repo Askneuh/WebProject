@@ -49,11 +49,7 @@ const test_coords = db.query(`SELECT id, x, y FROM coords;`);
 const router = new Router();
 const app = new Application();
 const connections: WebSocket[] = [];
-const cooldown = 5 * 1000; // ms
-const myarray: any[] = [];
 let updateInterval;
-let inactivityCheckInterval;
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes en millisecondes
 const maze = generateMaze(20, 20);
 
 
@@ -69,17 +65,7 @@ async function getHash(password: string): Promise<string> {
   return bcrypt.hash(password, salt);
 }
 
-async function createJwt(username: string): Promise<string> {
-  const header = {
-    alg: "HS256",
-    typ: "JWT"
-  };
-  const payload = {
-    username: username
-  };
-  const token = await create(header, payload, secretKey);
-  return token
-}
+
 /*
 function removeTokenByUser(user: string) {
   for (const token in tokens) {
@@ -147,9 +133,7 @@ router.post("/register", async (ctx) => {
       };
       db.query(`INSERT INTO users (username, password_hash) VALUES (?, ?)`, [username, hashedPassword]);
       test_users.push(newUser);
-      console.log("User pushed")
       const token = await create({ alg: "HS512", typ: "JWT" }, { userName: newUser.username }, secretKey);
-      // In login/register routes, use this consistent approach:
       ctx.cookies.set("auth_token", token, {
         httpOnly: true,
         sameSite: "Strict",
@@ -235,21 +219,25 @@ router.post("/getMaze", async (ctx) => {
 router.get("/getPlayerPosition", async (ctx) => {
   try {
     const user = await getVerifiedUser(ctx);
-    if (!user) return;
-    
-    const coords = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
-    if (coords.length > 0) {
-      ctx.response.status = 200;
-      ctx.response.body = { 
-        exists: true,
-        x: coords[0][0],
-        y: coords[0][1],
-        facing: coords[0][2],
-        player_id: user.id
-      };
-    } else {
-      ctx.response.status = 200;
-      ctx.response.body = { exists: false };
+    if (!user) {
+      ctx.response.status = 401;
+      ctx.response.body = { message: "Unauthorized" };
+    }
+    else {
+      const coords = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
+      if (coords.length > 0) {
+        ctx.response.status = 200;
+        ctx.response.body = { 
+          exists: true,
+          x: coords[0][0],
+          y: coords[0][1],
+          facing: coords[0][2],
+          player_id: user.id
+        };
+      } else {
+        ctx.response.status = 200;
+        ctx.response.body = { exists: false };
+      }
     }
   } catch (error) {
     ctx.response.status = 500;
@@ -259,178 +247,188 @@ router.get("/getPlayerPosition", async (ctx) => {
 
 router.post("/createNewPlayer", async (ctx) => {
   const user = await getVerifiedUser(ctx);
-  if (!user) return;
-  try {
-    const body = await ctx.request.body.json(); 
-    const { x, y } = body;
-    if (typeof x !== "number" || typeof y !== "number") {
-      ctx.response.status = 400;
-      ctx.response.body = { message: "Invalid request body" };
-      return;
-    }
-    const userId = user.id;
-    
-    // Check if user exists in the database
-    const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [userId]);
-    if (userExists.length === 0) {
-      ctx.response.status = 404;
-      ctx.response.body = { message: "User not found in the database" };
-      return;
-    }
-    
-    // Check if player already has coords (i.e., is already playing)
-    const coordsExists = db.query(`SELECT id FROM coords WHERE id = ?`, [userId]);
-    
-    if (coordsExists.length > 0) {
-      // Player already exists, retrieve current position and return it
-      const currentPosition = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [userId]);
-      ctx.response.status = 202;
-      ctx.response.body = { 
-        message: "Player already exists", 
-        player_id: userId,
-        x: currentPosition[0][0],
-        y: currentPosition[0][1],
-        facing: currentPosition[0][2]
-      };
-      return;
-    }
-    
-    // Add try-catch around database operations
+  if (!user) {
+    ctx.response.status = 401;
+    ctx.response.body = { message: "Unauthorized" };
+  }
+  else {
     try {
-      console.log("Inserting new player into coords table. ID:", userId, "Position:", x, y);
-      db.query(`INSERT INTO coords (id, x, y, facing) VALUES (?, ?, ?, ?)`, [userId, x, y, "down"]);
+      const body = await ctx.request.body.json(); 
+      const { x, y } = body;
       
-      // Initialiser l'horodatage de la dernière activité
-      const currentTime = Date.now();
-      db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [userId, currentTime]);
-      
-      console.log("Updating user isPlaying status");
-      db.query(`UPDATE users SET isPlaying = 1 WHERE id = ?`, [userId]);
-      
-      ctx.response.body = { message: "New player created successfully!", player_id: userId };
-      ctx.response.status = 201;
-    } catch (dbError) {
-      console.error("Database error:", dbError);
+      if (typeof x !== "number" || typeof y !== "number") {
+        ctx.response.status = 400;
+        ctx.response.body = { message: "Invalid request body" };
+      }
+      else {
+        const userId = user.id;
+        
+        const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [userId]);
+        if (userExists.length === 0) {
+          ctx.response.status = 404;
+          ctx.response.body = { message: "User not found in the database" };
+        }
+        else {
+          const coordsExists = db.query(`SELECT id FROM coords WHERE id = ?`, [userId]);
+          
+          if (coordsExists.length > 0) {
+            const currentPosition = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [userId]);
+            ctx.response.status = 202;
+            ctx.response.body = { 
+              message: "Player already exists", 
+              player_id: userId,
+              x: currentPosition[0][0],
+              y: currentPosition[0][1],
+              facing: currentPosition[0][2]
+            };
+          }
+          else {
+            try {
+              console.log("Inserting new player into coords table. ID:", userId, "Position:", x, y);
+              db.query(`INSERT INTO coords (id, x, y, facing) VALUES (?, ?, ?, ?)`, [userId, x, y, "down"]);
+              
+              const currentTime = Date.now();
+              db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [userId, currentTime]);
+              
+              console.log("Updating user isPlaying status");
+              db.query(`UPDATE users SET isPlaying = 1 WHERE id = ?`, [userId]);
+              
+              ctx.response.body = { message: "New player created successfully!", player_id: userId };
+              ctx.response.status = 201;
+            } catch (dbError) {
+              console.error("Database error:", dbError);
+              ctx.response.status = 500;
+              ctx.response.body = { message: "Database error", error: dbError.message };
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error in /createNewPlayer:", error);
       ctx.response.status = 500;
-      ctx.response.body = { message: "Database error", error: dbError.message };
+      ctx.response.body = { message: "Internal server error", error: error.message };
     }
-  } catch (error) {
-    console.error("Error in /createNewPlayer:", error);
-    ctx.response.status = 500;
-    ctx.response.body = { message: "Internal server error", error: error.message };
   }
 });
 
 router.get("/verifyAdmin", async (ctx) => {
   const user = await getVerifiedUser(ctx, true);
-  if (!user) return;
-  ctx.response.status = 200;
-  ctx.response.body = { message: "User is admin" };
+  if (user) {
+    ctx.response.status = 200;
+    ctx.response.body = { message: "User is admin" };
+  }
 });
 
 router.get("/admin/users", async (ctx) => {
   const user = await getVerifiedUser(ctx, true);
-  if (!user) return;
-  // Récupérer tous les utilisateurs
-  const users = db.query(`SELECT id, username FROM users`)
-    .map(([id, username]) => ({ id, username }));
-  ctx.response.status = 200;
-  ctx.response.body = users;
+  if (user){
+    // Récupérer tous les utilisateurs
+    const users = db.query(`SELECT id, username FROM users`)
+      .map(([id, username]) => ({ id, username }));
+    ctx.response.status = 200;
+    ctx.response.body = users;
+  }
 });
 
 router.delete("/admin/users/:id", async (ctx) => {
   const user = await getVerifiedUser(ctx, true);
-  if (!user) {
-    // getVerifiedUser gère déjà la réponse
-    return;
+  if (user) {
+    const idToDelete = ctx.params.id;
+    const adminCheck = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [idToDelete]);
+    if (adminCheck.length > 0 && adminCheck[0][0] == 1) {
+      ctx.response.status = 403;
+      ctx.response.body = { message: "Impossible de supprimer un administrateur." };
+    } else {
+      try {
+        db.query("BEGIN TRANSACTION");
+        
+        db.query(`DELETE FROM coords WHERE id = ?`, [idToDelete]);
+        db.query(`DELETE FROM stats WHERE id = ?`, [idToDelete]);
+        db.query(`DELETE FROM last_activity WHERE id = ?`, [idToDelete]);
+        db.query(`DELETE FROM tokens WHERE username = (SELECT username FROM users WHERE id = ?)`, [idToDelete]);
+        db.query(`DELETE FROM messages WHERE id = ?`, [idToDelete]);
+        
+        db.query(`DELETE FROM users WHERE id = ?`, [idToDelete]);
+        
+        db.query("COMMIT");
+      } catch (error) {
+        db.query("ROLLBACK");
+        console.error("Error deleting user:", error);
+        ctx.response.status = 500;
+        ctx.response.body = { message: "Error deleting user" };
+      }
+      ctx.response.status = 200;
+      ctx.response.body = { message: "User deleted" };
+    }   
   }
-  const idToDelete = ctx.params.id;
-  // Vérifier si l'utilisateur à supprimer est admin
-  const adminCheck = db.query(`SELECT isAdmin FROM users WHERE id = ?`, [idToDelete]);
-  if (adminCheck.length > 0 && adminCheck[0][0] == 1) {
-    ctx.response.status = 403;
-    ctx.response.body = { message: "Impossible de supprimer un administrateur." };
-  } else {
-    db.query(`DELETE FROM users WHERE id = ?`, [idToDelete]);
-    ctx.response.status = 200;
-    ctx.response.body = { message: "User deleted" };
-  }
-  // Ajout manuel des headers CORS pour toutes les réponses explicites
-  ctx.response.headers.set("Access-Control-Allow-Origin", "https://localhost:8080");
-  ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
-  ctx.response.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
 });
 
 router.post("/boo", async (ctx) => {
   try {
     const user = await getVerifiedUser(ctx);
-    if (!user) return;
-    // Vérifier si le joueur est juste devant quelqu'un
-    // On récupère la position et la direction du joueur courant
-    const playerPos = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
-    if (playerPos.length > 0) {
-      const [x, y, facing] = playerPos[0];
-      let targetX = x;
-      let targetY = y;
-      if (facing === "up") targetY--;
-      else if (facing === "down") targetY++;
-      else if (facing === "left") targetX--;
-      else if (facing === "right") targetX++;
-      // Chercher un joueur à cette position
-      const target = db.query(`SELECT id FROM coords WHERE x = ? AND y = ? AND id != ?`, [targetX, targetY, user.id]);
-      if (target.length > 0) {
-        const targetId = target[0][0];
+    if (user) {
+    
+      const playerPos = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [user.id]);
+      if (playerPos.length > 0) {
+        const [x, y, facing] = playerPos[0];
+        let targetX = x;
+        let targetY = y;
+        if (facing === "up") targetY--;
+        else if (facing === "down") targetY++;
+        else if (facing === "left") targetX--;
+        else if (facing === "right") targetX++;
         
-        // Téléporter le joueur cible à une position aléatoire
-        const random_coord_x = Math.floor(Math.random() * 20);
-        const random_coord_y = Math.floor(Math.random() * 20);
-        const randomFacing = ["up", "down", "left", "right"][Math.floor(Math.random() * 4)];
-        
-        // Mettre à jour la position dans la base de données
-        db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, 
-          [random_coord_x, random_coord_y, randomFacing, targetId]);
-        
-        ctx.response.status = 200;
-        ctx.response.body = { message: "Joueur devant trouvé", targetId };
-        
-        // Notifier tous les clients connectés
-        connections.forEach((client) => {
-          client.send(JSON.stringify({ 
-            type: "boo", 
-            targetId: targetId, 
-            booer: user.id
-          }));
-        });
-        
-        // Vérifier si les stats existent pour le booer (user)
-        let userStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [user.id]);
-        if (userStats.length === 0) {
-          db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [user.id, user.username]);
-          userStats = [[0, 0]];
+        const target = db.query(`SELECT id FROM coords WHERE x = ? AND y = ? AND id != ?`, [targetX, targetY, user.id]);
+        if (target.length > 0) {
+          const targetId = target[0][0];
+          
+          const random_coord_x = Math.floor(Math.random() * 20);
+          const random_coord_y = Math.floor(Math.random() * 20);
+          const randomFacing = ["up", "down", "left", "right"][Math.floor(Math.random() * 4)];
+          
+          db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, 
+            [random_coord_x, random_coord_y, randomFacing, targetId]);
+          
+          ctx.response.status = 200;
+          ctx.response.body = { message: "Joueur devant trouvé", targetId };
+          
+          connections.forEach((client) => {
+            client.send(JSON.stringify({ 
+              type: "boo", 
+              targetId: targetId, 
+              booer: user.id,
+              new_target_x: random_coord_x,
+              new_target_y: random_coord_y
+            }));
+          });
+          
+          let userStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [user.id]);
+          if (userStats.length === 0) {
+            db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [user.id, user.username]);
+            userStats = [[0, 0]];
+          }
+          const targetUser = db.query(`SELECT username FROM users WHERE id = ?`, [targetId]);
+          if (targetUser.length === 0) {
+            ctx.response.status = 500;
+            ctx.response.body = { message: "Target user not found in database" };
+          }
+          else {
+            let targetStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [targetId]);
+            if (targetStats.length === 0) {
+              db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [targetId, targetUser[0][0]]);
+              targetStats = [[0, 0]];
+            }
+            db.query(`UPDATE stats SET kills = kills + 1 WHERE id = ?`, [user.id]);
+            db.query(`UPDATE stats SET deaths = deaths + 1 WHERE id = ?`, [targetId]);
+          }
+        } else {
+          ctx.response.status = 200;
+          ctx.response.body = { message: "Aucun joueur devant" };
         }
-        // Vérifier si les stats existent pour la cible (targetId)
-        const targetUser = db.query(`SELECT username FROM users WHERE id = ?`, [targetId]);
-        if (targetUser.length === 0) {
-          // La cible n'existe pas, on ne fait rien de plus
-          return;
-        }
-        let targetStats = db.query(`SELECT kills, deaths FROM stats WHERE id = ?`, [targetId]);
-        if (targetStats.length === 0) {
-          db.query(`INSERT INTO stats (id, username, kills, deaths) VALUES (?, ?, 0, 0)`, [targetId, targetUser[0][0]]);
-          targetStats = [[0, 0]];
-        }
-        // Incrémenter les kills du booer et les morts de la cible
-        db.query(`UPDATE stats SET kills = kills + 1 WHERE id = ?`, [user.id]);
-        db.query(`UPDATE stats SET deaths = deaths + 1 WHERE id = ?`, [targetId]);
-        return;
-      } else {
-        ctx.response.status = 200;
-        ctx.response.body = { message: "Aucun joueur devant" };
-        return;
       }
     }
-  } catch (error) {
+  } 
+  catch (error) {
     console.error("Error in /getBooed:", error);
     ctx.response.status = 500;
     ctx.response.body = { message: "Internal server error" };
@@ -438,10 +436,8 @@ router.post("/boo", async (ctx) => {
 }
 );
 
-// Classement des kills (GET /kills)
 router.get("/kills", async (ctx) => {
   try {
-    // Récupère tous les kills, triés par kills décroissants
     const kills = db.query(`SELECT username, kills FROM stats ORDER BY kills DESC, username ASC`)
       .map(([username, kills]) => ({ username, kills }));
     ctx.response.status = 200;
@@ -452,41 +448,7 @@ router.get("/kills", async (ctx) => {
   }
 });
 
-// Route pour récupérer la position du joueur connecté
-// router.get("/getPlayerCoords", async (ctx) => {
-//   try {
-//     const authToken = await ctx.cookies.get("auth_token") as string;
-//     if (!authToken) {
-//       ctx.response.status = 401;
-//       ctx.response.body = { message: "Unauthorized" };
-//       return;
-//     }
-//     const tokenData = await verify(authToken, secretKey);
-//     if (tokenData) {
-//       const username = tokenData.userName || tokenData.username;
-//       const user = getUsers(db).find(u => u.username === username);
-//       if (!user) {
-//         ctx.response.status = 404;
-//         ctx.response.body = { message: "User not found" };
-//         return;
-//       }
-//       const coords = db.query(`SELECT x, y FROM coords WHERE id = ?`, [user.id]);
-//       if (coords.length > 0) {
-//         ctx.response.status = 200;
-//         ctx.response.body = { x: coords[0][0], y: coords[0][1], exists: true, player_id: user.id };
-//       } else {
-//         ctx.response.status = 200;
-//         ctx.response.body = { exists: false };
-//       }
-//     } else {
-//       ctx.response.status = 401;
-//       ctx.response.body = { message: "Invalid token" };
-//     }
-//   } catch (error) {
-//     ctx.response.status = 500;
-//     ctx.response.body = { message: "Internal server error" };
-//   }
-// });
+
 
 router.get("/", (ctx) => {
   if (!ctx.isUpgradable) {
@@ -502,6 +464,32 @@ router.get("/", (ctx) => {
     updateInterval = setInterval(() => {
       const positions = db.query(`SELECT * FROM coords;`);
       console.log(positions)
+      const currentTime = Date.now();
+      const inactivityThreshold = 3 * 60 * 1000; 
+      const inactivePlayers = db.query(
+        `SELECT la.id FROM last_activity la
+         JOIN users u ON la.id = u.id
+         WHERE u.isPlaying = 1 AND ? - la.last_move_timestamp > ?`,
+        [currentTime, inactivityThreshold]
+      );
+
+      if (inactivePlayers.length > 0) {
+        for (const row of inactivePlayers) {
+          const playerId = row[0];
+          console.log(`Disconnecting inactive player ${playerId} due to inactivity`);
+          
+          db.query(`DELETE FROM coords WHERE id = ?`, [playerId]);
+          
+          db.query(`UPDATE users SET isPlaying = 0 WHERE id = ?`, [playerId]);
+          connections.forEach((client) => {
+            client.send(JSON.stringify({
+              type: "disconnectDueToInactivity",
+              playerId: playerId,
+              message: "You have been disconnected due to inactivity"
+            }));
+          });
+        }
+      }
       const json = {
         type: "UpdateAllPlayers",
         positions: positions.map((row) => ({
@@ -538,7 +526,7 @@ router.get("/", (ctx) => {
     const user = test_users.find((u) => u.username === owner[0][0]);
 
     if (!user) {
-      console.log("? user in token doesn't exist");
+      console.log("User in token doesn't exist");
       ws.close();
       return; 
     }
@@ -554,16 +542,20 @@ router.get("/", (ctx) => {
       if (coord_x > 20 || coord_x < 0 || coord_y > 20 || coord_y < 0) {
           ws.send(JSON.stringify({ error: "invalid coordinates" }));
           return
-      }
-      db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, [coord_x, coord_y, facing, player_id]);
+      }      db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, [coord_x, coord_y, facing, player_id]);
       
-      // Mettre à jour l'horodatage de la dernière activité du joueur
-      const currentTime = Date.now();
-      const activityExists = db.query(`SELECT id FROM last_activity WHERE id = ?`, [player_id]);
-      if (activityExists.length > 0) {
-        db.query(`UPDATE last_activity SET last_move_timestamp = ? WHERE id = ?`, [currentTime, player_id]);
+      // Vérifier que le joueur existe dans la table users avant de mettre à jour last_activity
+      const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [player_id]);
+      if (userExists.length > 0) {
+        const currentTime = Date.now();
+        const activityExists = db.query(`SELECT id FROM last_activity WHERE id = ?`, [player_id]);
+        if (activityExists.length > 0) {
+          db.query(`UPDATE last_activity SET last_move_timestamp = ? WHERE id = ?`, [currentTime, player_id]);
+        } else {
+          db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [player_id, currentTime]);
+        }
       } else {
-        db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [player_id, currentTime]);
+        console.log(`Warning: Player ID ${player_id} doesn't exist in users table`);
       }
       
       return
@@ -577,21 +569,16 @@ router.get("/", (ctx) => {
       console.log("Player disconnected");
       return
     }
-    // Gestionnaire de requestPositionUpdate supprimé
     else if (data.type == "message") {
-      // Gestion du chat : broadcast à tous et sauvegarde en base avec message_id auto-incrémenté
       const { text } = data;
       if (typeof text === "string" && text.trim().length > 0) {
-        // Récupérer le dernier message_id pour cet utilisateur
         let lastId = 0;
         const last = db.query(`SELECT MAX(message_id) FROM messages WHERE id = ?`, [user.id]);
         if (last.length > 0 && last[0][0] !== null) {
           lastId = last[0][0];
         }
         const newId = lastId + 1;
-        // Sauvegarde en base
         db.query(`INSERT INTO messages (id, message_id, message) VALUES (?, ?, ?)`, [user.id, newId, text]);
-        // Broadcast à tous les clients
         connections.forEach((client) => {
           client.send(JSON.stringify({
             type: "message",
@@ -601,8 +588,8 @@ router.get("/", (ctx) => {
         });
       }
     }
-    
-}
+  };
+  
   ws.onclose = () => {
     const index = connections.indexOf(ws);
     if (index !== -1) {
@@ -616,7 +603,6 @@ router.get("/", (ctx) => {
   };
 });
 
-// deno-lint-ignore no-explicit-any
 function sendCoordsToAllUsers(json: any) {
   connections.forEach((client) => {
     client.send(JSON.stringify(json));
@@ -633,15 +619,14 @@ const port = parseInt(Deno.args[0]);
 let listenOptions: any = { port };
 
 if (Deno.args.length >= 3) {
-  // Lecture des fichiers de certificat et clé
   const cert = await Deno.readTextFile(Deno.args[1]);
   const key = await Deno.readTextFile(Deno.args[2]);
   
   listenOptions = {
     port,
     secure: true,
-    cert,  // Utiliser 'cert' au lieu de 'certFile'
-    key    // Utiliser 'key' au lieu de 'keyFile'
+    cert, 
+    key    
   };
   console.log(`SSL conf ready (use https)`);
 }
@@ -649,21 +634,7 @@ if (Deno.args.length >= 3) {
 console.log(`Server is running on https://localhost:${port}`);
 
 
-// Middleware global pour garantir les headers CORS même en cas d'erreur
-// app.use(async (ctx, next) => {
-//   try {
-//     await next();
-//   } catch (err) {
-//     ctx.response.status = err.status || 500;
-//     ctx.response.body = { message: err.message || "Internal server error" };
-//     ctx.response.headers.set("Access-Control-Allow-Origin", "https://localhost:8080");
-//     ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
-//     ctx.response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-//     ctx.response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-//   }
-// });
 
-// Place oakCors tout de suite après le middleware d'erreur
 app.use(
   oakCors({
     origin: 'https://localhost:8080',
@@ -674,7 +645,6 @@ app.use(
 );
 
 
-// Function to check the tokens received by websocket messages
 const is_authorized = async (auth_token: string) => {
   try{
     if (!auth_token) {
@@ -698,31 +668,8 @@ const is_authorized = async (auth_token: string) => {
     return false;
   }
 };
-/*
-// Middleware to verify JWT token
-const authorizationMiddleware = async (ctx: Context, next: () => Promise<unknown>) => {
-  const cookie = ctx.request.headers.get("cookie");
-  const authToken = ctx.cookies.get("auth_token");
 
-  if (!authToken) {
-    ctx.response.status = 401;
-    ctx.response.body = { error: "Unauthorized: Missing token" };
-    return;
-  }
-
-  try {
-    const tokenData = await verify(authToken, secretKey);
-    ctx.state.tokenData = tokenData;
-    await next();
-  } catch {
-    ctx.response.status = 401;
-    ctx.response.body = { error: "Unauthorized: Invalid token" };
-  }
-};
-*/
 app.use(router.routes());
 app.use(router.allowedMethods());
 
 await app.listen(listenOptions);
-
-

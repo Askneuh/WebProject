@@ -55,49 +55,14 @@ function updateKillsOverlay() {
 setInterval(updateKillsOverlay, 2000);
 updateKillsOverlay();
 
-async function initializePlayer() {
-  try {
-    // D'abord essayer de récupérer la position existante
-    const response = await fetch("https://localhost:3000/getPlayerPosition", {
-      method: "GET",
-      credentials: "include"
-    });
-    
-    if (response.ok) {
-      console.log("Response ok");
-      const data = await response.json();
-      console.log("Data received:", data);
-      if (data.exists) {
-        console.log("Position existante trouvée:", data);
-        // Utiliser la position existante
-        player = new Player(data.x, data.y, scene, cellSize, maze, data.facing);
-        player.createMesh();
-        player.player_id = data.player_id;
-        setupKeyboardControls();
-        return;
-      }
-      else {
-        // Si aucune position existante, en créer une nouvelle aléatoire
-        const random_coord_x = Math.floor(Math.random() * maze[0].length);
-        const random_coord_y = Math.floor(Math.random() * maze.length);
-        player = new Player(random_coord_x, random_coord_y, scene, cellSize, maze);
-        player.createMesh();
-        player.createOnServer();
-        setupKeyboardControls();
-      }
-    }
-    
-    
-  } catch (error) {
-    console.error("Error initializing player:", error);
-    // Fallback à une position aléatoire en cas d'erreur
-    const random_coord_x = Math.floor(Math.random() * maze[0].length);
-    const random_coord_y = Math.floor(Math.random() * maze.length);
-    player = new Player(random_coord_x, random_coord_y, scene, cellSize, maze);
-    player.createMesh();
-    player.createOnServer();
-    setupKeyboardControls();
-  }
+function initializePlayer() {
+  const random_coord_x = Math.floor(Math.random() * maze[0].length);
+  const random_coord_y = Math.floor(Math.random() * maze.length);
+  player = new Player(random_coord_x, random_coord_y, scene, cellSize, maze);
+  player.createMesh();
+  player.createOnServer();
+  
+  setupKeyboardControls();
 }
 
 function setupKeyboardControls() {
@@ -128,19 +93,17 @@ function setupKeyboardControls() {
         player.faceTowards(Direction.RIGHT);
         if (player.canMove("right", positions)) {
           newX++;
-        }
-        break;      
-        case 'e':
-          fetch("https://localhost:3000/boo", {
-            method: "POST", 
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({}) 
-          })
-        
+        }        
         break;
+      case 'e':
+        fetch("https://localhost:3000/boo", {
+          method: "POST", 
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({}) 
+        })
     }
 
     if (newX !== player.x || newY !== player.y) {
@@ -198,12 +161,21 @@ function setupWebSocketConnection() {
     } else if (message.type === "mazeUpdate") {
       console.log("Maze updated:", message.maze);    } else if (message.type === "boo") {
       console.log("Boo message received:", message);
-      //const booSound = new Audio('/static_html/sounds/boo.mp3');
-      //booSound.play();
       
-      // Si ce joueur est la cible
+      
       if (message.targetId === player.player_id) {
         alert("Boo! You have been scared!");
+        const random_coord_x = Math.floor(Math.random() * maze[0].length);
+        const random_coord_y = Math.floor(Math.random() * maze.length);
+        player.moveTo(random_coord_x, random_coord_y);
+        sendMessage({
+        type: "playerMove",
+        player_id: player.player_id,
+        x: random_coord_x,
+        y: random_coord_y,
+        facing: player.facingTowards
+      });
+        
       }
     } else if (message.type === "message") {
       // Affiche le message dans le chat
@@ -234,22 +206,6 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
-  // Gestion du bouton Quitter
-  const quitButton = document.getElementById('quit-button');
-  if (quitButton) {
-    quitButton.addEventListener('click', function() {
-      // Notifier le serveur que le joueur se déconnecte
-      if (player && player.player_id) {
-        sendMessage({
-          type: "playerDisconnect",
-          player_id: player.player_id
-        });
-      }
-      // Rediriger vers la page d'accueil
-      window.location.href = '../pages/index.html';
-    });
-  }
 });
 
 function animate() {
@@ -262,6 +218,14 @@ function animate() {
   // }
 }
 
+window.addEventListener('beforeunload', () => {
+  if (player && player.player_id) {
+    sendMessage({
+      type: "playerDisconnect",
+      player_id: player.player_id
+    });
+  }
+});
 
 console.log("Current cookies:", document.cookie);
 animate();

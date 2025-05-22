@@ -31,7 +31,9 @@ export function initScene() {
 export function updateAllPlayers(positions, scene, grid, user_id) {
     // Si positions est vide, ne rien faire
     if (!positions || positions.length === 0) return scene;
-    const currentPlayer = players.find(player => player.player_id === user_id);        // Mettre à jour les joueurs existants et ajouter les nouveaux
+    const currentPlayer = players.find(player => player.player_id === user_id);
+
+    // Mettre à jour les joueurs existants et ajouter les nouveaux
     positions.forEach((position) => {
         let player = players.find(player => player.player_id === position.id);
         // Harmonisation : utiliser 'facing' partout (backend et frontend)
@@ -46,7 +48,8 @@ export function updateAllPlayers(positions, scene, grid, user_id) {
             if (currentPlayer && player.player_id !== user_id) {       
                 player.mesh.visible = isInStraightLineOfSight(currentPlayer, player) && !isWallBetween(currentPlayer, player, grid);
             }
-        }        else {
+        }
+        else {
             // Créer un nouveau joueur
             const newPlayer = new Player(position.x, position.y, scene, 10, grid, facing);
             newPlayer.createMesh();
