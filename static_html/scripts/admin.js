@@ -1,5 +1,5 @@
 function verifySession() {
-    fetch("https://localhost:3000/verifySession", {
+    fetch("boorinthe-back.cluster-ig3.igpolytech.fr/verifySession", {
         method: "GET",
         secure: true,
         credentials: "include", // Assurez-vous que les cookies de session sont envoyés
@@ -24,7 +24,7 @@ function goToLogin() {
 
 verifySession();
 async function fetchUsers() {
-  const res = await fetch('https://localhost:3000/admin/users', { credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+  const res = await fetch('boorinthe-back.cluster-ig3.igpolytech.fr/admin/users', { credentials: 'include', headers: { 'Content-Type': 'application/json' } });
   if (!res.ok) {
     document.getElementById('message').textContent = "Accès refusé ou erreur serveur.";
     return;
@@ -41,7 +41,7 @@ async function fetchUsers() {
 
 window.deleteUser = async function(id) {
   if (!confirm('Supprimer cet utilisateur ?')) return;
-  const res = await fetch(`https://localhost:3000/admin/users/${id}`, {
+  const res = await fetch(`boorinthe-back.cluster-ig3.igpolytech.fr/admin/users/${id}`, {
     method: 'DELETE',
     credentials: 'include'
   });

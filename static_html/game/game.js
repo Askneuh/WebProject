@@ -29,7 +29,7 @@ overlay.innerHTML = '<b>Classement Kills</b><div id="kills-list">Chargement...</
 document.body.appendChild(overlay);
 
 function updateKillsOverlay() {
-  fetch('https://localhost:3000/kills', { 
+  fetch('boorinthe-back.cluster-ig3.igpolytech.fr/kills', { 
     method: 'GET',
     credentials: 'include',
     headers: {
@@ -96,7 +96,7 @@ function setupKeyboardControls() {
         }        
         break;
       case 'e':
-        fetch("https://localhost:3000/boo", {
+        fetch("boorinthe-back.cluster-ig3.igpolytech.fr/boo", {
           method: "POST", 
           credentials: "include",
           headers: {
@@ -121,7 +121,7 @@ function setupKeyboardControls() {
   });
 }
 
-fetch("https://localhost:3000/getMaze", {
+fetch("boorinthe-back.cluster-ig3.igpolytech.fr/getMaze", {
   method: "POST", 
   credentials: "include",
   headers: {
