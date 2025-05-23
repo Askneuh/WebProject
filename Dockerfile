@@ -1,17 +1,17 @@
-# Utilise une image officielle Deno
-FROM denoland/deno:alpine-1.40.4
+FROM denoland/deno:alpine-1.42.0
 
-# Définir le répertoire de travail
+# Configuration essentielle
 WORKDIR /app
+COPY . ./
 
-# Copier les fichiers du projet
-COPY . .
+# Cache des dépendances (améliore les rebuilds)
+RUN deno cache ./back_server.ts
 
-# Optionnel : cache les dépendances si tu as un deps.ts
-# RUN deno cache deps.ts
+# Paramètres Dokku spécifiques
+ENV DENO_DIR=/app/.deno_cache
+ENV PORT=8080  # Dokku utilise cette variable par défaut
 
-# Ouvre le port 8080 (Dokku l'exige)
 EXPOSE 8080
 
-# Commande pour lancer ton app Deno
+# Commande de démarrage adaptée
 CMD ["run", "--allow-net", "--allow-read", "--allow-env", "--allow-write", "back_server.ts"]
