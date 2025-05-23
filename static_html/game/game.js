@@ -55,14 +55,50 @@ function updateKillsOverlay() {
 setInterval(updateKillsOverlay, 2000);
 updateKillsOverlay();
 
-function initializePlayer() {
-  const random_coord_x = Math.floor(Math.random() * maze[0].length);
-  const random_coord_y = Math.floor(Math.random() * maze.length);
-  player = new Player(random_coord_x, random_coord_y, scene, cellSize, maze);
-  player.createMesh();
-  player.createOnServer();
-  
-  setupKeyboardControls();
+async function initializePlayer() {
+  try {
+    const positionResponse = await fetch('https://localhost:3000/getPlayerPosition', {
+      method: 'GET',
+      credentials: 'include'
+    });
+    
+    const positionData = await positionResponse.json();
+    
+    if (positionData.exists) {
+      console.log("Joueur existant trouvé:", positionData);
+      player = new Player(positionData.x, positionData.y, scene, cellSize, maze);
+      player.player_id = positionData.player_id;
+      player.facingTowards = positionData.facing || "down";
+    } else {
+      const random_coord_x = Math.floor(Math.random() * maze[0].length);
+      const random_coord_y = Math.floor(Math.random() * maze.length);
+      
+      const createResponse = await fetch('https://localhost:3000/createNewPlayer', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          x: random_coord_x,
+          y: random_coord_y
+        })
+      });
+      
+      const createData = await createResponse.json();
+      console.log("Nouveau joueur créé:", createData);
+      
+      player = new Player(random_coord_x, random_coord_y, scene, cellSize, maze);
+      player.player_id = createData.player_id;
+    }
+    
+    player.createMesh();
+    setupKeyboardControls();
+    
+  } catch (error) {
+    console.error("Erreur d'initialisation du joueur:", error);
+    goToLogin();
+  }
 }
 
 function setupKeyboardControls() {
@@ -130,25 +166,23 @@ fetch("https://localhost:3000/getMaze", {
   body: JSON.stringify({}) 
 })
 .then(response => {
-  if (response.ok) {
-    return response.json();
-  } else {
-    console.error("Failed to fetch maze:", response.statusText);
-    throw new Error("Failed to fetch maze");
-  }
+  if (!response.ok) throw new Error("Maze fetch failed");
+  return response.json();
 })
 .then(result => {
   maze = result.maze;
   console.log("Maze fetched:", maze);
-  
   buildMaze(maze, scene, cellSize);
   
-  initializePlayer();
-  
+  return initializePlayer(); // Chaîner les promesses
+})
+.then(() => {
   setupWebSocketConnection();
+  animate();
 })
 .catch(error => {
-  console.error("Error fetching maze:", error);
+  console.error("Initialization error:", error);
+  goToLogin();
 });
 
 function setupWebSocketConnection() {

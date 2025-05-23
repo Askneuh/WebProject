@@ -35,7 +35,7 @@ db.execute(`CREATE TABLE IF NOT EXISTS stats (
   username TEXT NOT NULL,
   kills INTEGER DEFAULT 0,
   deaths INTEGER DEFAULT 0)`);
-// Ajouter la table last_activity pour suivre l'activité des joueurs
+
 db.execute(`CREATE TABLE IF NOT EXISTS last_activity (
   id INTEGER PRIMARY KEY REFERENCES users (id),
   last_move_timestamp INTEGER NOT NULL
@@ -250,64 +250,69 @@ router.post("/createNewPlayer", async (ctx) => {
   if (!user) {
     ctx.response.status = 401;
     ctx.response.body = { message: "Unauthorized" };
+    return;
   }
-  else {
-    try {
-      const body = await ctx.request.body.json(); 
-      const { x, y } = body;
-      
-      if (typeof x !== "number" || typeof y !== "number") {
-        ctx.response.status = 400;
-        ctx.response.body = { message: "Invalid request body" };
-      }
-      else {
-        const userId = user.id;
-        
-        const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [userId]);
-        if (userExists.length === 0) {
-          ctx.response.status = 404;
-          ctx.response.body = { message: "User not found in the database" };
-        }
-        else {
-          const coordsExists = db.query(`SELECT id FROM coords WHERE id = ?`, [userId]);
-          
-          if (coordsExists.length > 0) {
-            const currentPosition = db.query(`SELECT x, y, facing FROM coords WHERE id = ?`, [userId]);
-            ctx.response.status = 202;
-            ctx.response.body = { 
-              message: "Player already exists", 
-              player_id: userId,
-              x: currentPosition[0][0],
-              y: currentPosition[0][1],
-              facing: currentPosition[0][2]
-            };
-          }
-          else {
-            try {
-              console.log("Inserting new player into coords table. ID:", userId, "Position:", x, y);
-              db.query(`INSERT INTO coords (id, x, y, facing) VALUES (?, ?, ?, ?)`, [userId, x, y, "down"]);
-              
-              const currentTime = Date.now();
-              db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [userId, currentTime]);
-              
-              console.log("Updating user isPlaying status");
-              db.query(`UPDATE users SET isPlaying = 1 WHERE id = ?`, [userId]);
-              
-              ctx.response.body = { message: "New player created successfully!", player_id: userId };
-              ctx.response.status = 201;
-            } catch (dbError) {
-              console.error("Database error:", dbError);
-              ctx.response.status = 500;
-              ctx.response.body = { message: "Database error", error: dbError.message };
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error in /createNewPlayer:", error);
-      ctx.response.status = 500;
-      ctx.response.body = { message: "Internal server error", error: error.message };
+
+  try {
+    const body = await ctx.request.body.json();
+    const { x, y } = body;
+    
+    if (typeof x !== "number" || typeof y !== "number") {
+      ctx.response.status = 400;
+      ctx.response.body = { message: "Invalid coordinates" };
+      return;
     }
+
+    const userId = user.id;
+    const currentTime = Date.now();
+
+    const coordsExists = db.query(`SELECT id FROM coords WHERE id = ?`, [userId]);
+    
+    const activityExists = db.query(`SELECT id FROM last_activity WHERE id = ?`, [userId]);
+
+    db.query("BEGIN TRANSACTION");
+    
+    try {
+      if (coordsExists.length > 0) {
+        db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, 
+          [x, y, "down", userId]);
+      } else {
+        db.query(`INSERT INTO coords (id, x, y, facing) VALUES (?, ?, ?, ?)`, 
+          [userId, x, y, "down"]);
+        db.query(`UPDATE users SET isPlaying = 1 WHERE id = ?`, [userId]);
+      }
+
+      if (activityExists.length > 0) {
+        db.query(`UPDATE last_activity SET last_move_timestamp = ? WHERE id = ?`, 
+          [currentTime, userId]);
+      } else {
+        db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, 
+          [userId, currentTime]);
+      }
+
+      db.query("COMMIT");
+      
+      ctx.response.body = { 
+        message: coordsExists.length > 0 ? "Player position updated" : "New player created",
+        player_id: userId,
+        x,
+        y,
+        facing: "down"
+      };
+      ctx.response.status = coordsExists.length > 0 ? 200 : 201;
+      
+    } catch (error) {
+      db.query("ROLLBACK");
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error("Error in /createNewPlayer:", error);
+    ctx.response.status = 500;
+    ctx.response.body = { 
+      message: "Internal server error",
+      error: error.message 
+    };
   }
 });
 
@@ -322,7 +327,6 @@ router.get("/verifyAdmin", async (ctx) => {
 router.get("/admin/users", async (ctx) => {
   const user = await getVerifiedUser(ctx, true);
   if (user){
-    // Récupérer tous les utilisateurs
     const users = db.query(`SELECT id, username FROM users`)
       .map(([id, username]) => ({ id, username }));
     ctx.response.status = 200;
@@ -544,7 +548,6 @@ router.get("/", (ctx) => {
           return
       }      db.query(`UPDATE coords SET x = ?, y = ?, facing = ? WHERE id = ?`, [coord_x, coord_y, facing, player_id]);
       
-      // Vérifier que le joueur existe dans la table users avant de mettre à jour last_activity
       const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [player_id]);
       if (userExists.length > 0) {
         const currentTime = Date.now();
