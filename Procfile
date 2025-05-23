@@ -1,1 +1,0 @@
-web: ./.heroku/bin/deno run --allow-env --allow-read --allow-net server.ts $PORT
