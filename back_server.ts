@@ -640,8 +640,9 @@ console.log(`Server is running on boorinthe-back.cluster-ig3.igpolytech.fr`);
 
 app.use(
   oakCors({
-    origin: 'https://localhost:8080',
+    origin: 'boorinthe.cluster-ig3.igpolytech.fr:8080',
     credentials: true,
+    secure: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
