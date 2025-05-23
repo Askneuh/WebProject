@@ -2,7 +2,7 @@ import { Application } from "https://deno.land/x/oak@v12.6.1/mod.ts";
 import { Status } from "https://deno.land/std@0.178.0/http/http_status.ts";
 
 const app = new Application();
-const ROOT = `${Deno.cwd()}/`;
+const ROOT = `${Deno.cwd()}/static_html`; // ← Nouveau chemin
 
 // Logger middleware
 app.use(async (ctx, next) => {
@@ -98,7 +98,11 @@ if (Deno.args.length >= 3) {
 console.log(`Oak static server running on ${listenOptions.secure ? 'https' : 'http'}://localhost:${port} for the files in ${ROOT}`);
 
 try {
-  await app.listen(listenOptions);
+  // Dans server.ts
+await app.listen({ 
+  port: Number(Deno.env.get("PORT")), 
+  hostname: "0.0.0.0" // ← Ajout critique
+});
 } catch (error) {
   console.error("Server error:", error);
 }
