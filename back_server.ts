@@ -634,7 +634,7 @@ if (Deno.args.length >= 3) {
   console.log(`SSL conf ready (use https)`);
 }
 
-console.log(`Server is running on https://localhost:${port}`);
+console.log(`Server is running on boorinthe-back.cluster-ig3.igpolytech.fr`);
 
 
 
