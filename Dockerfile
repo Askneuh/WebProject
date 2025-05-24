@@ -3,4 +3,6 @@ WORKDIR /app
 
 COPY . .
 
+EXPOSE 8080
+
 CMD ["deno", "run", "--allow-read", "--allow-net", "--allow-env", "server.ts"]
