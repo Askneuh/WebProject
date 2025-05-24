@@ -88,6 +88,12 @@ if (Deno.args.length >= 3) {
     Deno.exit(1);
   }
 }
+else {
+  listenOptions = {
+    port: Number(Deno.args[0]),
+    secure: true,
+  };
+}
 
 console.log(`Oak static server running on ${listenOptions.secure ? 'https' : 'http'}://localhost:${port} for the files in ${ROOT}`);
 
