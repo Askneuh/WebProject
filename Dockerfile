@@ -2,9 +2,6 @@ FROM denoland/deno:alpine
 
 WORKDIR /app
 
-# Cache les dépendances
-COPY deps.ts .
-RUN deno cache deps.ts
 
 # Copie le reste
 COPY . .
