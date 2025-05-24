@@ -29,7 +29,7 @@ overlay.innerHTML = '<b>Classement Kills</b><div id="kills-list">Chargement...</
 document.body.appendChild(overlay);
 
 function updateKillsOverlay() {
-  fetch('boorinthe-back.cluster-ig3.igpolytech.fr/kills', { 
+  fetch('https://boorinthe-back.cluster-ig3.igpolytech.fr/kills', { 
     method: 'GET',
     credentials: 'include',
     headers: {

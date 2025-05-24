@@ -33,9 +33,7 @@ app.use(async (ctx, next) => {
 // Static file middleware
 app.use(async (ctx) => {
   try {
-    const path = ctx.request.url.pathname === "/" 
-    ? "static_html/pages/index.html" 
-    : `static_html${ctx.request.url.pathname}`;
+    const path = "static_html/pages/index.html";
 
     
     const filePath = `${ROOT}${path}`;
