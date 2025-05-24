@@ -78,10 +78,6 @@ let listenOptions: any = { port };
 
 if (Deno.args.length >= 3) {
   try {
-    // Lecture des fichiers de certificat et clé
-    const cert = await Deno.readTextFile("cert.crt");
-    const key = await Deno.readTextFile("cert.key");
-    
     listenOptions = {
       port,
       secure: true
