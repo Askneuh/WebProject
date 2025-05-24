@@ -4,7 +4,7 @@ import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, verify } from "https://deno.land/x/djwt/mod.ts";
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
 import { getUsers } from "./.vscode/libs/SQLHandler.ts"
-import { generateMaze} from "./static_html/game/generateMaze.ts";
+import { generateMaze} from "./generateMaze.ts"
 
 
 const db = new DB("game.db");
