@@ -2,7 +2,7 @@ import { Application } from "https://deno.land/x/oak@v12.6.1/mod.ts";
 import { Status } from "https://deno.land/std@0.178.0/http/http_status.ts";
 
 const app = new Application();
-const ROOT = `${Deno.cwd()}/static_html`; // ← Nouveau chemin
+const ROOT = `${Deno.cwd()}/static_html`;
 
 // Logger middleware
 app.use(async (ctx, next) => {
@@ -34,7 +34,7 @@ app.use(async (ctx, next) => {
 app.use(async (ctx) => {
   try {
     const path = ctx.request.url.pathname === "/" 
-      ? "/index.html" 
+      ? "index.html" 
       : ctx.request.url.pathname;
     
     const filePath = `${ROOT}${path}`;
