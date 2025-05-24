@@ -638,15 +638,7 @@ console.log(`Server is running on boorinthe-back.cluster-ig3.igpolytech.fr`);
 
 
 
-app.use(
-  oakCors({
-    origin: 'https://boorinthe.cluster-ig3.igpolytech.fr:8080',
-    credentials: true,
-    secure: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+
 
 
 const is_authorized = async (auth_token: string) => {
@@ -673,6 +665,15 @@ const is_authorized = async (auth_token: string) => {
   }
 };
 
+app.use(
+  oakCors({
+    origin: 'https://boorinthe.cluster-ig3.igpolytech.fr',
+    credentials: true,
+    secure: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(router.routes());
 app.use(router.allowedMethods());
 
