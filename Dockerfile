@@ -1,13 +1,6 @@
-FROM denoland/deno:alpine
-
+FROM denoland/deno:latest
 WORKDIR /app
 
+COPY --from=builder /app .
 
-# Copie le reste
-COPY . .
-
-# Port exposé (remplacez par votre port)
-EXPOSE 8080
-
-# Commande de lancement (adaptez à votre cas)
-CMD ["run", "--allow-net", "--allow-read", "server.ts"]
+CMD ["deno", "run", "--allow-read", "--allow-net", "--allow-env", "server.ts"]
