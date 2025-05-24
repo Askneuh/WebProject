@@ -34,8 +34,9 @@ app.use(async (ctx, next) => {
 app.use(async (ctx) => {
   try {
     const path = ctx.request.url.pathname === "/" 
-      ? "static-html/pages/index.html" 
-      : ctx.request.url.pathname;
+    ? "static_html/pages/index.html" 
+    : `static_html${ctx.request.url.pathname}`;
+
     
     const filePath = `${ROOT}${path}`;
     const fileInfo = await Deno.stat(filePath);
