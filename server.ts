@@ -98,7 +98,7 @@ else {
 console.log(`Oak static server running on ${listenOptions.secure ? 'https' : 'http'}://localhost:${port} for the files in ${ROOT}`);
 
 try {
-  await app.listen({port: port, secure: true});
+  await app.listen({port: port, secure: true, cert: "", key: ""});
 } catch (error) {
   console.error("Server error:", error);
 }
