@@ -1,12 +1,14 @@
 export function verifySession() {
     fetch("boorinthe-back.cluster-ig3.igpolytech.fr/verifySession", {
         method: "GET",
-        credentials: "include", // Assurez-vous que les cookies de session sont envoyés
+        credentials: "include", 
       })
       .then(response => {
         if (response.status === 200) {
           console.log("Utilisateur connecté");
         } else {
+          console.log("EH ?")
+          wait(2);
           goToLogin();
         }
       })
@@ -24,7 +26,7 @@ export async function goToAdmin() {
           "Content-Type": "application/json",
         },
         secure: true,
-        credentials: "include", // Assurez-vous que les cookies de session sont envoyés
+        credentials: "include"
       })
       .then(response => {
         if (response.status === 200) {
