@@ -1,5 +1,5 @@
 export function verifySession() {
-    fetch("boorinthe-back.cluster-ig3.igpolytech.fr/verifySession", {
+    fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr/verifySession", {
         method: "GET",
         credentials: "include", 
       })
