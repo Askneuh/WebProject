@@ -7,13 +7,18 @@ export function verifySession() {
         if (response.status === 200) {
           console.log("Utilisateur connecté");
         } else {
-          console.log("EH ?")
-          wait(2);
+          console.log("Requete good")
+          setTimeout(() => {
+            console.log("Waiting 2 seconds before redirecting...");
+          }, 2000);
           goToLogin();
         }
       })
       .catch(error => {
         console.error("Erreur de vérification d'authentification :", error);
+        setTimeout(() => {
+            console.log("Waiting 2 seconds before redirecting...");
+          }, 2000);
         goToLogin();
       });
 }
