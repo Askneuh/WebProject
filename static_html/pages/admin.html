@@ -3,28 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <title>Admin - Gestion des utilisateurs</title>
-  <link rel="stylesheet" href="../styles/style.css">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 2em; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    th { background: #f0f0f0; }
-    button { background: #d9534f; color: white; border: none; padding: 5px 10px; cursor: pointer; }
-    button:hover { background: #c9302c; }
-  </style>
+  <link rel="stylesheet" href="../styles/admin.css">
 </head>
 <body>
   <h1>Administration - Utilisateurs</h1>
+  <button class="admin-home-button" onclick="window.location.href='../index.html'">← Retour à l'accueil</button>
   <div id="admin-section">
     <table id="users-table">
       <thead>
         <tr><th>ID</th><th>Nom d'utilisateur</th><th>Action</th></tr>
       </thead>
       <tbody id="users-body">
-        <!-- Utilisateurs chargés ici -->
       </tbody>
     </table>
-    <div id="message" style="margin-top:1em;color:green;"></div>
+    <div id="message" style="margin-top:1em;color:rgb(156, 3, 3);"></div>
   </div>
   <script src="../scripts/admin.js"></script>
 </body>
