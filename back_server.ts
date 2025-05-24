@@ -4,7 +4,7 @@ import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, verify } from "https://deno.land/x/djwt/mod.ts";
 import { DB } from "https://deno.land/x/sqlite/mod.ts";
 import { getUsers } from "./.vscode/libs/SQLHandler.ts"
-import { generateMaze} from "./generateMaze.ts"
+import { generateMaze} from "./generateMaze.ts";
 
 
 const db = new DB("game.db");
@@ -634,36 +634,7 @@ if (Deno.args.length >= 3) {
   console.log(`SSL conf ready (use https)`);
 }
 
-console.log(`Server is running on boorinthe-back.cluster-ig3.igpolytech.fr`);
-
-
-
-
-
-
-const is_authorized = async (auth_token: string) => {
-  try{
-    if (!auth_token) {
-      return false;
-    }
-    const tokenData = await verify(auth_token, secretKey);
-    const tokenInDB = db.query(`SELECT token FROM tokens WHERE token = ?`, [auth_token]);
-    if (tokenInDB.length > 0) {
-      const username = db.query(`SELECT username FROM tokens WHERE token = ?`, [auth_token]);
-      const user = getUsers(db).find(u => u.username === username[0][0]);
-      if (!user) {
-        return false;
-      }
-      return true;
-    }
-    else {
-      return false;
-    }
-  }
-  catch (error) {
-    return false;
-  }
-};
+console.log(`Server is running on https://localhost:${port}`);
 
 app.use(
   oakCors({
