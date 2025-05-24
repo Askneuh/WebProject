@@ -15,12 +15,9 @@ async function login() {
             credentials: 'include'
         });
 
-        console.log("ici", response.status);
 
         if (response.ok) {
             const result = await response.json();
-            console.log("response ok");
-            console.log(result.auth_token);
             console.log("Redirecting to index page");
             window.location.href = '/pages/index.html';
             
