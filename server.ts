@@ -34,7 +34,7 @@ app.use(async (ctx, next) => {
 app.use(async (ctx) => {
   try {
     const path = ctx.request.url.pathname === "/" 
-      ? "/pages/index.html" 
+      ? "static-html/pages/index.html" 
       : ctx.request.url.pathname;
     
     const filePath = `${ROOT}${path}`;
