@@ -13,7 +13,7 @@ export class Player {
     }
 
     createOnServer() {
-    fetch(`boorinthe-back.cluster-ig3.igpolytech.fr/createNewPlayer`, {
+    fetch(`https://boorinthe-back.cluster-ig3.igpolytech.fr/createNewPlayer`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

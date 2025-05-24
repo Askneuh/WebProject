@@ -121,7 +121,7 @@ function setupKeyboardControls() {
   });
 }
 
-fetch("boorinthe-back.cluster-ig3.igpolytech.fr/getMaze", {
+fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr/getMaze", {
   method: "POST", 
   credentials: "include",
   headers: {

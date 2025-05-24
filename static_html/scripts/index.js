@@ -18,7 +18,7 @@ export function verifySession() {
 
 
 export async function goToAdmin() {
-    fetch("boorinthe-back.cluster-ig3.igpolytech.fr/verifyAdmin", {
+    fetch("https://boorinthe-back.cluster-ig3.igpolytech.fr/verifyAdmin", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

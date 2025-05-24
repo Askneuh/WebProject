@@ -6,7 +6,7 @@ async function login() {
         username,
         password
     };    try {
-        const response = await fetch('boorinthe-back.cluster-ig3.igpolytech.fr/login', {
+        const response = await fetch('https://boorinthe-back.cluster-ig3.igpolytech.fr/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
