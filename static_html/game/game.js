@@ -13,7 +13,6 @@ var positions = [];
 let maze;
 let player;
 
-// Overlay classement kills
 const overlay = document.createElement('div');
 overlay.id = 'kills-overlay';
 overlay.style.position = 'fixed';
@@ -105,28 +104,34 @@ function setupKeyboardControls() {
   document.addEventListener('keydown', (e) => {
     let newX = player.x;
     let newY = player.y;
+    let directionChanged = false;
+    let oldDirection = player.facingTowards;
 
     switch (e.key) {
       case 'z':
         player.faceTowards(Direction.UP);
+        directionChanged = (oldDirection !== Direction.UP);
         if (player.canMove("up", positions)){
           newY--;
         } 
         break;
       case 's':
         player.faceTowards(Direction.DOWN);
+        directionChanged = (oldDirection !== Direction.DOWN);
         if (player.canMove("down", positions)) {
           newY++;
         }
         break;
       case 'q':
         player.faceTowards(Direction.LEFT);
+        directionChanged = (oldDirection !== Direction.LEFT);
         if (player.canMove("left", positions)) {
           newX--;
         }
         break;
       case 'd':
         player.faceTowards(Direction.RIGHT);
+        directionChanged = (oldDirection !== Direction.RIGHT);
         if (player.canMove("right", positions)) {
           newX++;
         }        
@@ -140,8 +145,10 @@ function setupKeyboardControls() {
           },
           body: JSON.stringify({}) 
         })
+        return; // Sortir de la fonction pour éviter les autres traitements
     }
 
+    // Si le joueur a bougé, envoyer la mise à jour de position
     if (newX !== player.x || newY !== player.y) {
       console.log("Player moved to:", newX, newY);
       player.moveTo(newX, newY);
@@ -153,6 +160,18 @@ function setupKeyboardControls() {
         facing: player.facingTowards
       });
       console.log("Player moved to server:", newX, newY);
+    }
+
+    else if (directionChanged) {
+      console.log("Player direction changed to:", player.facingTowards);
+      sendMessage({
+        type: "playerDirectionChange",
+        player_id: player.player_id,
+        x: player.x,
+        y: player.y,
+        facing: player.facingTowards
+      });
+      console.log("Player direction sent to server:", player.facingTowards);
     }
   });
 }
@@ -174,7 +193,7 @@ fetch("https://localhost:3000/getMaze", {
   console.log("Maze fetched:", maze);
   buildMaze(maze, scene, cellSize);
   
-  return initializePlayer(); // Chaîner les promesses
+  return initializePlayer(); 
 })
 .then(() => {
   setupWebSocketConnection();
@@ -212,7 +231,6 @@ function setupWebSocketConnection() {
         
       }
     } else if (message.type === "message") {
-      // Affiche le message dans le chat
       const chatMessages = document.getElementById('chat-messages');
       if (chatMessages) {
         const div = document.createElement('div');
@@ -226,7 +244,6 @@ function setupWebSocketConnection() {
   });
 }
 
-// Ajout de l'envoi de message via le chat
 window.addEventListener('DOMContentLoaded', () => {
   const chatForm = document.getElementById('chat-form');
   const chatInput = document.getElementById('chat-input');
@@ -246,10 +263,7 @@ function animate() {
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
-  // Commenté car selon votre code, cette fonction n'est pas encore pleinement implémentée
-  // if (player) {
-  //   updateLight(player.x, player.y, cellSize, scene);
-  // }
+
 }
 
 window.addEventListener('beforeunload', () => {
@@ -261,5 +275,6 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
-console.log("Current cookies:", document.cookie);
 animate();
+
+

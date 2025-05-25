@@ -22,15 +22,12 @@ async function login() {
             
             
         } else if (response.status === 401) {
-            // Handle 401 Unauthorized error
             alert('Unauthorized: Invalid username or password');
         } else {
-            // Handle other non-successful response codes
-            alert('Login failed: ' + response.statusText);
+            alert('Login failed: mot de passe incorrect');
         }
     } catch (error) {
         alert('Login failed: ' + error.message);
-        // Handle other errors
     }
 }
 

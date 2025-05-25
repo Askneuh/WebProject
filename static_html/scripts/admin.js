@@ -2,7 +2,7 @@ function verifySession() {
     fetch("https://localhost:3000/verifySession", {
         method: "GET",
         secure: true,
-        credentials: "include", // Assurez-vous que les cookies de session sont envoyés
+        credentials: "include", 
       })
       .then(response => {
         if (response.status === 200) {

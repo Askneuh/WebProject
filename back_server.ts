@@ -563,6 +563,26 @@ router.get("/", (ctx) => {
       
       return
     }
+    else if (data.type == "playerDirectionChange") {
+      console.log("Player direction changed");
+      const coord_x = data.x;
+      const coord_y = data.y;
+      const player_id = data.player_id;
+      const facing = data.facing;
+      db.query(`UPDATE coords SET facing = ? WHERE id = ? AND x = ? AND y = ?`, [facing, player_id, coord_x, coord_y]);
+      const userExists = db.query(`SELECT id FROM users WHERE id = ?`, [player_id]);
+      if (userExists.length > 0) {
+        const currentTime = Date.now();
+      const activityExists = db.query(`SELECT id FROM last_activity WHERE id = ?`, [player_id]);
+        if (activityExists.length > 0) {
+          db.query(`UPDATE last_activity SET last_move_timestamp = ? WHERE id = ?`, [currentTime, player_id]);
+        } else {
+          db.query(`INSERT INTO last_activity (id, last_move_timestamp) VALUES (?, ?)`, [player_id, currentTime]);
+        }
+      }
+    
+    console.log(`Player ${player_id} changed direction to ${facing} at position (${coord_x}, ${coord_y})`);
+    }
     else if (data.type == "playerDisconnect") {
       const player_id = data.player_id;
       

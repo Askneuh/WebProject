@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MyWebSite</title>
+    <title>Boorinthe - Game</title>
     <style>
         html, body {
             margin: 0;
@@ -15,6 +15,40 @@
         canvas {
             display: block;
             outline: none;
+        }
+        .game-home-button {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background: rgba(233, 69, 96, 0.8);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 30px;
+        cursor: pointer;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .game-home-button:hover {
+        background: rgba(233, 69, 96, 1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+        }
+
+        .game-home-button::before {
+        font-weight: bold;
+        }
+
+        /* Version avec icône (optionnel) */
+        .game-home-button i {
+        margin-right: 8px;
         }
     </style>
 </head>
@@ -37,5 +71,6 @@
             <button type="submit" style="background:#3a8dde; color:white; border:none; padding:8px 16px; border-radius:0 0 8px 0; cursor:pointer;">Envoyer</button>
         </form>
     </div>
+    <button class="game-home-button" onclick="window.location.href='../index.html'">← Retour à l'accueil</button>
 </body>
 </html>

@@ -106,8 +106,7 @@ function isInStraightLineOfSight(viewer, target) {
 export function updateLight(player_x, player_y, cellSize, scene) {
     
   
-    // Add a new point light at the player's position
-    const light = new THREE.PointLight(0x0000ff, 1, cellSize * 5); // Adjust intensity and distance as needed
+    const light = new THREE.PointLight(0x0000ff, 1, cellSize * 5); 
     light.position.set(player_x * cellSize + cellSize / 2, 5, player_y * cellSize + cellSize / 2);
     scene.add(light);
   }

@@ -1,7 +1,7 @@
 export function verifySession() {
     fetch("https://localhost:3000/verifySession", {
         method: "GET",
-        credentials: "include", // Assurez-vous que les cookies de session sont envoyés
+        credentials: "include", 
       })
       .then(response => {
         if (response.status === 200) {
@@ -24,7 +24,7 @@ export async function goToAdmin() {
           "Content-Type": "application/json",
         },
         secure: true,
-        credentials: "include", // Assurez-vous que les cookies de session sont envoyés
+        credentials: "include", 
       })
       .then(response => {
         if (response.status === 200) {
@@ -40,7 +40,6 @@ export async function goToAdmin() {
       });
 }
 
-// Rendez la fonction accessible dans le scope global pour l'appel inline HTML
 window.goToAdmin = goToAdmin;
 
 function goToLogin() {

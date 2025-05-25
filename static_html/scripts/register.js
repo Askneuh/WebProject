@@ -32,3 +32,8 @@ async function register() {
         alert('Register failed: ' + error.message);
     }
 }
+
+function goToLogin() {
+    console.log("Redirecting to login page");
+    window.location.href = "/pages/login.html";
+}

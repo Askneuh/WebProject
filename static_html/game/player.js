@@ -9,10 +9,9 @@ export class Player {
         this.grid = grid;
         this.mesh = null;
         this.player_id = null;
-        this.facingTowards = facingTowards; // Placeholder for face direction
+        this.facingTowards = facingTowards; 
     }
 
-    // In player.js, modify the createOnServer method to handle different response statuses
     createOnServer() {
     fetch(`https://localhost:3000/createNewPlayer`, {
         method: 'POST',
