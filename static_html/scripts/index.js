@@ -16,6 +16,29 @@ export function verifySession() {
       });
 }
 
+export async function logout() {
+  fetch("https://localhost:3000/logout", {
+    method: "POST", 
+    headers : { "Content-Type": "application/json"}, 
+    secure: true, 
+    credentials : "include"
+  })
+  .then(response => {
+    if (response.status === 200) {
+      window.location.href = "/pages/login.html";
+    }
+    else {
+      alert(response.body.message);
+    }
+  })
+  .catch(error => {
+        console.error("Erreur de vérification d'authentification :", error);
+        goToLogin();
+      });
+}
+window.logout = logout;
+
+
 
 export async function goToAdmin() {
     fetch("https://localhost:3000/verifyAdmin", {

@@ -209,6 +209,18 @@ router.get("/verifySession", async (ctx) => {
   ctx.response.body = { message: "Session is valid", user: { username: user.username } };
 });
 
+router.post("/logout", async (ctx) => {
+  const user = await getVerifiedUser(ctx);
+  if (user) {
+    ctx.cookies.delete("auth_token");
+    ctx.response.status = 200;
+  }
+  else {
+    ctx.response.status = 401;
+    ctx.response.body = {message : "Log out impossible"}
+  }
+})
+
 router.post("/getMaze", async (ctx) => {
   const user = await getVerifiedUser(ctx);
   if (!user) return;
@@ -660,7 +672,7 @@ console.log(`Server is running on https://localhost:${port}`);
 
 app.use(
   oakCors({
-    origin: 'https://localhost:8080',
+    origin: "https://localhost:8080",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
