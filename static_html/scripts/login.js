@@ -16,8 +16,6 @@ async function login() {
         });
         if (response.ok) {
             const result = await response.json();
-            console.log(result.auth_token);
-            console.log("Redirecting to index page");
             window.location.href = '/index.html';
             
             

@@ -1,8 +1,18 @@
 import { Application } from "https://deno.land/x/oak@v12.6.1/mod.ts";
 import { Status } from "https://deno.land/std@0.178.0/http/http_status.ts";
+import { oakCors } from "https://deno.land/x/cors/mod.ts";
 
 const app = new Application();
 const ROOT = `${Deno.cwd()}/`;
+
+app.use(
+  oakCors({
+    origin: "https://localhost:3000", // ⚠ HTTPS ici !
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // Logger middleware
 app.use(async (ctx, next) => {
@@ -40,6 +50,7 @@ app.use(async (ctx) => {
     const filePath = `${ROOT}${path}`;
     const fileInfo = await Deno.stat(filePath);
     
+    
     if (fileInfo.isFile) {
       // Set appropriate content type based on file extension
       const ext = path.substring(path.lastIndexOf(".") + 1);
@@ -53,6 +64,7 @@ app.use(async (ctx) => {
         case "png": contentType = "image/png"; break;
         case "jpg": case "jpeg": contentType = "image/jpeg"; break;
         case "gif": contentType = "image/gif"; break;
+        case "ico": contentType = "favicon.ico"; break;
       }
       
       ctx.response.headers.set("Content-Type", contentType);
